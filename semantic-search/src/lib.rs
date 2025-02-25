@@ -9,6 +9,7 @@
 
 pub mod embedding;
 mod error;
+mod silicon_flow;
 
 pub use embedding::Embedding;
 pub use error::SenseError;

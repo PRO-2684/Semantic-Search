@@ -1,16 +1,18 @@
+//! # Embedding module
+//!
 //! Embedding representation, conversion and calculation. Assumes little-endian byte order.
 //!
-//! # Representation
+//! ## Representation
 //!
 //! Embedding is represented as a 1024-dimensional vector of 32-bit floating point numbers. [`Embedding`] struct is a wrapper around  [`EmbeddingRaw`] (alias for `[f32; 1024]`), and provides methods for conversion and calculation.
 //!
-//! # Conversion
+//! ## Conversion
 //!
 //! - [`EmbeddingBytes`] is an alias for `[u8; 1024 * 4]` and represents the embedding in bytes (little-endian).
 //! - [`Embedding`] can be converted to [`EmbeddingBytes`] and vice versa.
 //! - `Vec<f32>` and `Vec<u8>` can be converted to [`Embedding`], but [`DimensionMismatch`](SenseError::DimensionMismatch) error is returned if the length mismatches.
 //!
-//! # Calculation
+//! ## Calculation
 //!
 //! Cosine similarity between two embeddings can be calculated using [`cosine_similarity`](Embedding::cosine_similarity) method.
 
@@ -27,6 +29,8 @@ pub type EmbeddingRaw = [f32; 1024];
 pub type EmbeddingBytes = [u8; 1024 * 4];
 
 /// Wrapped embedding representation.
+///
+/// See [module-level documentation](crate::embedding) for more details.
 pub struct Embedding {
     inner: EmbeddingRaw,
     norm: f32,
