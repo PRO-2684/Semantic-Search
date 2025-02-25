@@ -1,14 +1,14 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
-}
+//! # Semantic Search Library
+//!
+//! `semantic-search` is a library for searching semantically similar documents.
+//!
+//! To be specific, it helps you get embeddings of texts and search for top-k similar texts, where similarity is defined by cosine similarity of embeddings.
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+#![deny(missing_docs)]
+#![warn(clippy::all, clippy::nursery, clippy::pedantic, clippy::cargo)]
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
-}
+pub mod embedding;
+mod error;
+
+pub use error::SenseError;
+pub use embedding::Embedding;

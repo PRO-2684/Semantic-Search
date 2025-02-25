@@ -5,3 +5,7 @@ edition = "2021"
 
 [dependencies]
 semantic-search = { path = "../semantic-search" }
+
+[[bin]]
+name = "sense"
+path = "src/main.rs"
