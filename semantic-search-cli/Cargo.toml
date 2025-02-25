@@ -1,0 +1,7 @@
+[package]
+name = "semantic-search-cli"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+semantic-search = { path = "../semantic-search" }
