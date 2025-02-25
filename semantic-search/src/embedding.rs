@@ -6,7 +6,7 @@
 //!
 //! # Conversion
 //!
-//! - [`EmbeddingBytes`] is a 1024 * 4 bytes array.
+//! - [`EmbeddingBytes`] is an alias for `[u8; 1024 * 4]` and represents the embedding in bytes (little-endian).
 //! - [`Embedding`] can be converted to [`EmbeddingBytes`] and vice versa.
 //! - `Vec<f32>` and `Vec<u8>` can be converted to [`Embedding`], but [`DimensionMismatch`](SenseError::DimensionMismatch) error is returned if the length mismatches.
 //!
@@ -17,7 +17,7 @@
 use super::SenseError;
 use std::{
     convert::TryFrom,
-    ops::{Deref, DerefMut},
+    ops::Deref,
 };
 
 /// Raw embedding representation.
@@ -26,8 +26,11 @@ pub type EmbeddingRaw = [f32; 1024];
 /// Embedding represented in bytes (little-endian).
 pub type EmbeddingBytes = [u8; 1024 * 4];
 
-/// Embedding representation.
-pub struct Embedding(EmbeddingRaw);
+/// Wrapped embedding representation.
+pub struct Embedding {
+    inner: EmbeddingRaw,
+    norm: f32,
+}
 
 // Cosine similarity calculation
 
@@ -40,13 +43,19 @@ impl Embedding {
             .zip(other.iter())
             .map(|(a, b)| a * b)
             .sum::<f32>();
-        let norm_self = self.iter().map(|a| a * a).sum::<f32>().sqrt();
-        let norm_other = other.iter().map(|b| b * b).sum::<f32>().sqrt();
-        dot_product / (norm_self * norm_other)
+        dot_product / (self.norm * other.norm)
     }
 }
 
 // Convertion
+
+impl From<EmbeddingRaw> for Embedding {
+    /// Convert `[f32; 1024]` to `Embedding`.
+    fn from(inner: EmbeddingRaw) -> Self {
+        let norm = inner.iter().map(|a| a * a).sum::<f32>().sqrt();
+        Self { inner, norm }
+    }
+}
 
 impl From<EmbeddingBytes> for Embedding {
     /// Convert 1024 * 4 bytes to `Embedding` (little-endian).
@@ -56,7 +65,7 @@ impl From<EmbeddingBytes> for Embedding {
             let f = f32::from_le_bytes(chunk.try_into().unwrap()); // Safe to unwrap, as we know the length is 4
             embedding[i] = f;
         });
-        Self(embedding)
+        Self::from(embedding)
     }
 }
 
@@ -68,7 +77,7 @@ impl From<Embedding> for EmbeddingBytes {
             .chunks_exact_mut(4)
             .enumerate()
             .for_each(|(i, chunk)| {
-                let f = embedding.0[i];
+                let f = embedding[i];
                 chunk.copy_from_slice(&f.to_le_bytes());
             });
         bytes
@@ -84,10 +93,10 @@ impl TryFrom<Vec<f32>> for Embedding {
     ///
     /// Returns [`DimensionMismatch`](SenseError::DimensionMismatch) if the length of the input vector is not 1024.
     fn try_from(value: Vec<f32>) -> Result<Self, Self::Error> {
-        let embedding = value
+        let embedding: EmbeddingRaw = value
             .try_into()
             .map_err(|_| SenseError::DimensionMismatch)?;
-        Ok(Self(embedding))
+        Ok(Self::from(embedding))
     }
 }
 
@@ -107,21 +116,17 @@ impl TryFrom<Vec<u8>> for Embedding {
     }
 }
 
-// Implement `Deref` and `DerefMut` for `Embedding`
+// Implement `Deref` for `Embedding`
 
 impl Deref for Embedding {
     type Target = EmbeddingRaw;
 
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.inner
     }
 }
 
-impl DerefMut for Embedding {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
+// Should not mutate the inner representation, since `norm` is cached based on it
 
 #[cfg(test)]
 mod tests {
@@ -145,7 +150,7 @@ mod tests {
 
     #[test]
     fn bytes_from_embedding() {
-        let embedding = Embedding([EMBEDDING_FLOAT; 1024]);
+        let embedding = Embedding::from([EMBEDDING_FLOAT; 1024]);
         let bytes = EmbeddingBytes::from(embedding);
 
         bytes.chunks_exact(4).for_each(|chunk| {
@@ -155,7 +160,7 @@ mod tests {
 
     #[test]
     fn similar_to_self() {
-        let embedding = Embedding([EMBEDDING_FLOAT; 1024]);
+        let embedding = Embedding::from([EMBEDDING_FLOAT; 1024]);
         let similarity = embedding.cosine_similarity(&embedding);
         let delta = (similarity - 1.0).abs();
         // Approximate equality

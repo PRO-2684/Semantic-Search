@@ -10,5 +10,5 @@
 pub mod embedding;
 mod error;
 
-pub use error::SenseError;
 pub use embedding::Embedding;
+pub use error::SenseError;
