@@ -8,5 +8,3 @@ license = "gpl-3.0-or-later"
 repository = "https://github.com/PRO-2684/Semantic-Search"
 keywords = ["search", "semantic", "library"]
 categories = ["command-line-utilities", "development-tools"]
-
-[dependencies]

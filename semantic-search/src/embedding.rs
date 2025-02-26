@@ -1,6 +1,12 @@
 //! # Embedding module
 //!
-//! Embedding representation, conversion and calculation. Assumes little-endian byte order.
+//! Embedding types, representation, conversion and calculation. Assumes little-endian byte order.
+//!
+//! ## Types
+//!
+//! - [`EmbeddingRaw`]: Raw embedding representation, alias for `[f32; 1024]`.
+//! - [`EmbeddingBytes`]: Embedding represented in bytes (little-endian), alias for `[u8; 1024 * 4]`.
+//! - [`Embedding`]: Wrapped embedding representation.
 //!
 //! ## Representation
 //!
@@ -8,9 +14,9 @@
 //!
 //! ## Conversion
 //!
-//! - [`EmbeddingBytes`] is an alias for `[u8; 1024 * 4]` and represents the embedding in bytes (little-endian).
-//! - [`Embedding`] can be converted to [`EmbeddingBytes`] and vice versa.
-//! - `Vec<f32>` and `Vec<u8>` can be converted to [`Embedding`], but [`DimensionMismatch`](SenseError::DimensionMismatch) error is returned if the length mismatches.
+//! - [`Embedding`] can be converted from [`EmbeddingRaw`] and [`EmbeddingBytes`].
+//! - [`Embedding`] can be immutably dereferenced to [`EmbeddingRaw`] and converted to [`EmbeddingBytes`].
+//! - [`Embedding`] can be converted from `&[f32]`, `&[u8]`, `Vec<f32>` and `Vec<u8>`, but [`DimensionMismatch`](SenseError::DimensionMismatch) error is returned if the length mismatches.
 //!
 //! ## Calculation
 //!
@@ -85,6 +91,38 @@ impl From<Embedding> for EmbeddingBytes {
                 chunk.copy_from_slice(&f.to_le_bytes());
             });
         bytes
+    }
+}
+
+impl TryFrom<&[f32]> for Embedding {
+    type Error = SenseError;
+
+    /// Convert `&[f32]` to `Embedding`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DimensionMismatch`](SenseError::DimensionMismatch) if the length of the input slice is not 1024.
+    fn try_from(value: &[f32]) -> Result<Self, Self::Error> {
+        let embedding: EmbeddingRaw = value
+            .try_into()
+            .map_err(|_| SenseError::DimensionMismatch)?;
+        Ok(Self::from(embedding))
+    }
+}
+
+impl TryFrom<&[u8]> for Embedding {
+    type Error = SenseError;
+
+    /// Convert `&[u8]` to `Embedding`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`DimensionMismatch`](SenseError::DimensionMismatch) if the length of the input slice is not 1024 * 4.
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        let bytes: EmbeddingBytes = value
+            .try_into()
+            .map_err(|_| SenseError::DimensionMismatch)?;
+        Ok(Self::from(bytes))
     }
 }
 
