@@ -8,7 +8,7 @@ use doc_for::{doc_impl, DocDyn};
 use reqwest::{Client, Url};
 use serde::{Deserialize, Serialize};
 
-// == API key and model definitions ==
+// == API key validation and model definitions ==
 
 /// Available models.
 #[doc_impl(doc_for = false, doc_dyn = true, strip = 1)]
@@ -31,34 +31,17 @@ impl Default for Model {
     }
 }
 
-/// An API key.
-#[derive(Debug)]
-pub struct ApiKey(String);
-
-impl ApiKey {
-    /// Create a new API key.
-    fn new(key: String) -> Result<Self, SenseError> {
-        // Check that the key is in the correct format:
-        // `sk-` followed by 48 alphanumeric characters
-        if key.len() != 51 {
+/// Validate that the API key is well-formed.
+fn validate_api_key(key: &str) -> Result<(), SenseError> {
+    if key.len() != 51 {
+        return Err(SenseError::MalformedApiKey);
+    }
+    for c in key.chars().skip(3) {
+        if !c.is_ascii_alphanumeric() {
             return Err(SenseError::MalformedApiKey);
         }
-        for c in key.chars().skip(3) {
-            if !c.is_ascii_alphanumeric() {
-                return Err(SenseError::MalformedApiKey);
-            }
-        }
-
-        Ok(Self(key))
     }
-}
-
-impl TryFrom<String> for ApiKey {
-    type Error = SenseError;
-
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        Self::new(value)
-    }
+    Ok(())
 }
 
 // == Request and response definitions ==
@@ -127,13 +110,14 @@ pub struct ApiClient {
 
 impl ApiClient {
     /// Create a new API client.
-    pub fn new(key: ApiKey, model: Model) -> Self {
-        Self {
-            key: key.0,
+    pub fn new(key: String, model: Model) -> Result<Self, SenseError> {
+        validate_api_key(&key)?;
+        Ok(Self {
+            key,
             model: model.doc_dyn().unwrap().to_string(),
             endpoint: Url::parse("https://api.siliconflow.cn/v1/embeddings").unwrap(),
             client: Client::new(),
-        }
+        })
     }
 
     /// Embed a text.
@@ -143,17 +127,13 @@ impl ApiClient {
             input: text,
             encoding_format: "base64",
         };
-
-        let response: ResponseBody = self
+        let request = self
             .client
             .post(self.endpoint.clone())
             .header("Authorization", format!("Bearer {}", self.key))
-            .json(&request_body)
-            .send()
-            .await?
-            .json()
-            .await?;
+            .json(&request_body);
 
+        let response: ResponseBody = request.send().await?.json().await?;
         assert_eq!(response.model, self.model);
 
         let embedding = DECODER
@@ -171,14 +151,13 @@ mod tests {
 
     #[test]
     fn test_api_key_ok() {
-        let key = ApiKey::new(KEY.to_string());
-        assert!(key.is_ok());
+        validate_api_key(KEY).unwrap();
     }
 
     #[test]
     fn test_api_key_malformed() {
-        let key = ApiKey::new("sk-1234567890abcdef1234567890abcdef1234567890abcde".to_string());
-        let err = key.unwrap_err();
+        let malformed = &KEY[..KEY.len() - 1];
+        let err = validate_api_key(&malformed).unwrap_err();
         assert!(matches!(err, SenseError::MalformedApiKey));
     }
 
@@ -187,7 +166,7 @@ mod tests {
     async fn test_embed() {
         // Read the API key from the environment
         let key = std::env::var("SILICONFLOW_API_KEY").unwrap();
-        let client = ApiClient::new(ApiKey::try_from(key).unwrap(), Model::BgeLargeZhV1_5);
+        let client = ApiClient::new(key, Model::BgeLargeZhV1_5).unwrap();
         let embedding = client.embed("Hello, world!").await;
         let _ = embedding.unwrap();
     }

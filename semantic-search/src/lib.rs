@@ -11,6 +11,6 @@ mod api;
 pub mod embedding;
 mod error;
 
-pub use api::{ApiClient, ApiKey, Model};
+pub use api::{ApiClient, Model};
 pub use embedding::Embedding;
 pub use error::SenseError;
