@@ -30,27 +30,15 @@ model = "BAAI/bge-large-zh-v1.5" # Model to use for embedding (Optional)
 
 ### Indexing
 
-Index the files you want to search for by executing the following command:
+(Re-)Index the files you want to search for by executing the following command:
 
 ```bash
 sense index
 ```
 
-This will generate an index of the files and their hashes in `.sense/index.csv`. Note that each time you add or remove files, you need to re-run this process.
+This will generate or update index of the files, their hashes, labels and embeddings in `.sense/index.db`. Note that each time you add or remove files, you need to re-run this process.
 
-### Labeling
-
-Label your files at `.sense/index.csv` either manually or using any tool of your choice.
-
-### Embedding
-
-Execute the following command to generate embeddings for the labels:
-
-```bash
-sense embed
-```
-
-This will generate embeddings for each label and store them in `.sense/embeddings.json`. Note that each time you add or remove files, you need to re-run this process.
+If files are created or changed, running this command will prompt you to label them (again). You can use any tool of your choice to label them automatically. See [DEV.md](../docs/DEV.md) for more information on the database schema.
 
 ## Usage
 
@@ -92,7 +80,7 @@ $ curl -X POST http://localhost:8080/search -d '{"query": "cute cat", "limit": 5
 ## ☑️ TODOs
 
 - [ ] Implement aforementioned features
-    - [ ] Indexing
+    - [x] Indexing
     - [ ] Labeling
     - [ ] Embedding
     - [ ] Searching

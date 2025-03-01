@@ -16,6 +16,25 @@ pub enum SenseError {
     RequestFailed(ReqwestError),
 }
 
+impl std::fmt::Display for SenseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::DimensionMismatch => write!(f, "Embedding must be 1024-dimensional"),
+            Self::MalformedApiKey => write!(f, "Malformed API key"),
+            Self::RequestFailed(error) => write!(f, "Request failed: {}", error),
+        }
+    }
+}
+
+impl std::error::Error for SenseError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::RequestFailed(error) => Some(error),
+            _ => None,
+        }
+    }
+}
+
 impl From<ReqwestError> for SenseError {
     /// Error when request fails.
     fn from(error: ReqwestError) -> Self {

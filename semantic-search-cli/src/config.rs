@@ -50,7 +50,7 @@ pub struct Config {
     port: u16,
     /// API key for Silicon Cloud.
     key: String,
-    /// Model to use for embedding.
+    /// Model to use for embedding. FIXME: Unused for now.
     model: String,
 }
 

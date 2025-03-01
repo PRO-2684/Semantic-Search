@@ -1,15 +1,23 @@
 //! `index` subcommand
 
-use crate::util::{hash_file, init, walk_dir};
+use crate::{util::{hash_file, init, walk_dir}, Config};
 use argh::FromArgs;
 use log::{debug, warn};
+use semantic_search::{ApiClient, Embedding, Model, SenseError};
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, fs::File, io::Result as IOResult};
+use std::{collections::HashMap, fs::File};
 
 /// generate index of the files
 #[derive(FromArgs, PartialEq, Eq, Debug)]
 #[argh(subcommand, name = "index")]
-pub struct Index {}
+pub struct Index {
+    /// reset the index and start from scratch
+    #[argh(switch)]
+    pub reset: bool,
+    /// skip prompting for labels and use empty labels
+    #[argh(switch, short = 'y')]
+    pub yes: bool,
+}
 
 /// An index record.
 #[derive(Serialize, Deserialize)]
@@ -33,65 +41,72 @@ pub struct IndexSummary {
     pub new: usize,
 }
 
-/// Index files.
-pub fn index() -> IOResult<IndexSummary> {
-    init()?;
+impl Index {
+    /// Index files.
+    pub fn execute(&self, config: &Config) -> Result<IndexSummary, Box<dyn std::error::Error>> {
+        init()?;
 
-    // Read `.sense/index.csv` if it exists
-    let mut existing = HashMap::new();
-    if let Ok(index) = File::open(".sense/index.csv") {
-        let mut reader = csv::Reader::from_reader(index);
-        for result in reader.deserialize() {
-            let record: IndexRecord = result?;
-            existing.insert(record.path.clone(), record);
+        // Read `.sense/index.csv` if it exists
+        let mut existing = HashMap::new();
+        if !self.reset {
+            if let Ok(index) = File::open(".sense/index.csv") {
+                let mut reader = csv::Reader::from_reader(index);
+                for result in reader.deserialize() {
+                    let record: IndexRecord = result?;
+                    existing.insert(record.path.clone(), record);
+                }
+            }
         }
+
+        // Overwrite `.sense/index.csv` if it exists
+        let mut summary = IndexSummary::default();
+        let index = File::create(".sense/index.csv")?;
+        let mut writer = csv::Writer::from_writer(index);
+        debug!("Index file created.");
+
+        // Initialize the API client
+        let api = ApiClient::new(config.key().to_owned(), Model::BgeLargeZhV1_5)?;
+
+        // For all files, calculate hash and write to `.sense/index.csv`
+        let cwd = std::env::current_dir()?.canonicalize()?;
+        walk_dir(&cwd, &cwd, &mut |path, relative| {
+            let hash = hash_file(path)?;
+            let relative = relative.to_string();
+
+            let record = match existing.remove(&relative) {
+                // If the file is already indexed
+                Some(mut record) => {
+                    // Warn if the hash has changed
+                    if record.hash != hash {
+                        summary.changed += 1;
+                        warn!("Hash of {relative} has changed, consider relabeling",);
+                        debug!("[CHANGED] {relative}: {} -> {hash}", record.hash);
+                        record.hash = hash;
+                    } else {
+                        summary.unchanged += 1;
+                        debug!("[SAME] {relative}: {hash}");
+                    }
+                    // Reuse the record
+                    record
+                }
+                // Generate a new record
+                None => {
+                    summary.new += 1;
+                    debug!("[NEW] {hash}: {relative}");
+                    IndexRecord {
+                        path: relative,
+                        hash,
+                        label: "".into(),
+                    }
+                }
+            };
+
+            writer.serialize(record)?;
+            Ok(())
+        })?;
+
+        Ok(summary)
     }
-
-    // Overwrite `.sense/index.csv` if it exists
-    let mut summary = IndexSummary::default();
-    let index = File::create(".sense/index.csv")?;
-    let mut writer = csv::Writer::from_writer(index);
-    debug!("Index file created.");
-
-    // For all files, calculate hash and write to `.sense/index.csv`
-    let cwd = std::env::current_dir()?.canonicalize()?;
-    walk_dir(&cwd, &cwd, &mut |path, relative| {
-        let hash = hash_file(path)?;
-        let relative = relative.to_string();
-
-        let record = match existing.remove(&relative) {
-            // If the file is already indexed
-            Some(mut record) => {
-                // Warn if the hash has changed
-                if record.hash != hash {
-                    summary.changed += 1;
-                    warn!("Hash of {relative} has changed, consider relabeling",);
-                    debug!("[CHANGED] {relative}: {} -> {hash}", record.hash);
-                    record.hash = hash;
-                } else {
-                    summary.unchanged += 1;
-                    debug!("[SAME] {relative}: {hash}");
-                }
-                // Reuse the record
-                record
-            }
-            // Generate a new record
-            None => {
-                summary.new += 1;
-                debug!("[NEW] {hash}: {relative}");
-                IndexRecord {
-                    path: relative,
-                    hash,
-                    label: "".into(),
-                }
-            }
-        };
-
-        writer.serialize(record)?;
-        Ok(())
-    })?;
-
-    Ok(summary)
 }
 
 #[cfg(test)]

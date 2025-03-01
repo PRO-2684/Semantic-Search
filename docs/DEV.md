@@ -23,3 +23,13 @@ SILICONFLOW_API_KEY=sk-1234567890abcdef1234567890abcdef1234567890abcdef cargo te
 ## `.sense` directory structure
 
 - `config.toml`: Configuration file for the CLI.
+- `index.db`: SQLite database containing the index of files and generated embeddings. The schema is as follows:
+
+```sql
+CREATE TABLE IF NOT EXISTS embeddings (
+    file_path TEXT PRIMARY KEY,  -- Unique file identifier
+    file_hash TEXT NOT NULL,     -- Hash of the file contents
+    label TEXT NOT NULL,         -- Label of the file
+    embedding BLOB NOT NULL      -- 4KB binary data (embedding)
+);
+```
