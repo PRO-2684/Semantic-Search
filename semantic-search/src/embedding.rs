@@ -100,8 +100,7 @@ impl TryFrom<&[f32]> for Embedding {
     ///
     /// Returns [`DimensionMismatch`](SenseError::DimensionMismatch) if the length of the input slice is not 1024.
     fn try_from(value: &[f32]) -> Result<Self, Self::Error> {
-        let embedding: EmbeddingRaw = value
-            .try_into()?;
+        let embedding: EmbeddingRaw = value.try_into()?;
         Ok(Self::from(embedding))
     }
 }
@@ -115,8 +114,7 @@ impl TryFrom<&[u8]> for Embedding {
     ///
     /// Returns [`DimensionMismatch`](SenseError::DimensionMismatch) if the length of the input slice is not 1024 * 4.
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        let bytes: EmbeddingBytes = value
-            .try_into()?;
+        let bytes: EmbeddingBytes = value.try_into()?;
         Ok(Self::from(bytes))
     }
 }
@@ -130,8 +128,7 @@ impl TryFrom<Vec<f32>> for Embedding {
     ///
     /// Returns [`DimensionMismatch`](SenseError::DimensionMismatch) if the length of the input vector is not 1024.
     fn try_from(value: Vec<f32>) -> Result<Self, Self::Error> {
-        let embedding: EmbeddingRaw = value
-            .try_into()?;
+        let embedding: EmbeddingRaw = value.try_into()?;
         Ok(Self::from(embedding))
     }
 }
@@ -145,8 +142,7 @@ impl TryFrom<Vec<u8>> for Embedding {
     ///
     /// Returns [`DimensionMismatch`](SenseError::DimensionMismatch) if the length of the input vector is not 1024 * 4.
     fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
-        let bytes: EmbeddingBytes = value
-            .try_into()?;
+        let bytes: EmbeddingBytes = value.try_into()?;
         Ok(Self::from(bytes))
     }
 }

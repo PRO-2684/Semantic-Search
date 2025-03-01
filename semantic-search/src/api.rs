@@ -3,10 +3,10 @@
 //! This module contains logic for the SiliconFlow API.
 
 use super::{embedding::EmbeddingBytes, SenseError};
-use base64::{Engine as _, engine::general_purpose::STANDARD as DECODER};
+use base64::{engine::general_purpose::STANDARD as DECODER, Engine as _};
 use doc_for::{doc_impl, DocDyn};
 use reqwest::{Client, Url};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 // == API key and model definitions ==
 
@@ -147,8 +147,7 @@ impl ApiClient {
         let response: ResponseBody = self
             .client
             .post(self.endpoint.clone())
-            .header("Authorization",
-                    format!("Bearer {}", self.key))
+            .header("Authorization", format!("Bearer {}", self.key))
             .json(&request_body)
             .send()
             .await?
@@ -157,7 +156,9 @@ impl ApiClient {
 
         assert_eq!(response.model, self.model);
 
-        let embedding = DECODER.decode(response.data[0].embedding.as_bytes()).unwrap();
+        let embedding = DECODER
+            .decode(response.data[0].embedding.as_bytes())
+            .unwrap();
         Ok(embedding.try_into()?)
     }
 }
@@ -166,7 +167,7 @@ impl ApiClient {
 mod tests {
     use super::*;
 
-    const KEY : &str = "sk-1234567890abcdef1234567890abcdef1234567890abcdef";
+    const KEY: &str = "sk-1234567890abcdef1234567890abcdef1234567890abcdef";
 
     #[test]
     fn test_api_key_ok() {
@@ -186,10 +187,7 @@ mod tests {
     async fn test_embed() {
         // Read the API key from the environment
         let key = std::env::var("SILICONFLOW_API_KEY").unwrap();
-        let client = ApiClient::new(
-            ApiKey::try_from(key).unwrap(),
-            Model::BgeLargeZhV1_5,
-        );
+        let client = ApiClient::new(ApiKey::try_from(key).unwrap(), Model::BgeLargeZhV1_5);
         let embedding = client.embed("Hello, world!").await;
         let _ = embedding.unwrap();
     }

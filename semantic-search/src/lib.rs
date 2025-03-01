@@ -7,10 +7,10 @@
 #![deny(missing_docs)]
 #![warn(clippy::all, clippy::nursery, clippy::pedantic, clippy::cargo)]
 
+mod api;
 pub mod embedding;
 mod error;
-mod api;
 
+pub use api::{ApiClient, ApiKey, Model};
 pub use embedding::Embedding;
 pub use error::SenseError;
-pub use api::{ApiKey, ApiClient, Model};
