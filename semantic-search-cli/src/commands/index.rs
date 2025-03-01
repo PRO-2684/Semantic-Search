@@ -2,9 +2,9 @@
 
 use crate::util::{hash_file, init, walk_dir};
 use argh::FromArgs;
-use log::debug;
+use log::{debug, warn};
 use serde::{Deserialize, Serialize};
-use std::{fs::File, io::Result as IOResult};
+use std::{collections::HashMap, fs::File, io::Result as IOResult};
 
 /// generate index of the files
 #[derive(FromArgs, PartialEq, Eq, Debug)]
@@ -22,34 +22,76 @@ pub struct IndexRecord {
     pub label: String,
 }
 
-/// Index files.
-pub fn index() -> IOResult<()> {
-    init()?;
-    println!("Indexing files...");
+/// Summary of the index operation.
+#[derive(Debug, Default)]
+pub struct IndexSummary {
+    /// Number of unchanged files
+    pub unchanged: usize,
+    /// Number of changed files
+    pub changed: usize,
+    /// Number of new files
+    pub new: usize,
+}
 
-    // Overwrite `.sense/index.csv` if it exists (always start afresh)
+/// Index files.
+pub fn index() -> IOResult<IndexSummary> {
+    init()?;
+
+    // Read `.sense/index.csv` if it exists
+    let mut existing = HashMap::new();
+    if let Ok(index) = File::open(".sense/index.csv") {
+        let mut reader = csv::Reader::from_reader(index);
+        for result in reader.deserialize() {
+            let record: IndexRecord = result?;
+            existing.insert(record.path.clone(), record);
+        }
+    }
+
+    // Overwrite `.sense/index.csv` if it exists
+    let mut summary = IndexSummary::default();
     let index = File::create(".sense/index.csv")?;
     let mut writer = csv::Writer::from_writer(index);
-    debug!("Index file created");
+    debug!("Index file created.");
 
     // For all files, calculate hash and write to `.sense/index.csv`
     let cwd = std::env::current_dir()?.canonicalize()?;
-    walk_dir(&cwd, &cwd,  &mut |path, relative| {
+    walk_dir(&cwd, &cwd, &mut |path, relative| {
         let hash = hash_file(path)?;
-        debug!("{hash}: {relative}");
+        let relative = relative.to_string();
 
-        // Write to `.sense/index.csv`
-        writer.serialize(IndexRecord {
-            path: relative.to_string(),
-            hash,
-            label: "".into(),
-        })?;
+        let record = match existing.remove(&relative) {
+            // If the file is already indexed
+            Some(mut record) => {
+                // Warn if the hash has changed
+                if record.hash != hash {
+                    summary.changed += 1;
+                    warn!("Hash of {relative} has changed, consider relabeling",);
+                    debug!("[CHANGED] {relative}: {} -> {hash}", record.hash);
+                    record.hash = hash;
+                } else {
+                    summary.unchanged += 1;
+                    debug!("[SAME] {relative}: {hash}");
+                }
+                // Reuse the record
+                record
+            }
+            // Generate a new record
+            None => {
+                summary.new += 1;
+                debug!("[NEW] {hash}: {relative}");
+                IndexRecord {
+                    path: relative,
+                    hash,
+                    label: "".into(),
+                }
+            }
+        };
 
+        writer.serialize(record)?;
         Ok(())
     })?;
 
-    println!("Indexing complete! Consider labeling the files at `.sense/index.csv`.");
-    Ok(())
+    Ok(summary)
 }
 
 #[cfg(test)]

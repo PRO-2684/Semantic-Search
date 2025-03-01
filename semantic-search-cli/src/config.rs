@@ -2,8 +2,8 @@
 
 use std::path::Path;
 
-use serde::Deserialize;
 use semantic_search::Model;
+use serde::Deserialize;
 
 /// Structure of the configuration file. Example:
 ///
@@ -61,11 +61,7 @@ impl From<ConfigToml> for Config {
         let key = value.api.key;
         let model = value.api.model.unwrap_or(Model::default().to_string());
 
-        Self {
-            port,
-            key,
-            model,
-        }
+        Self { port, key, model }
     }
 }
 

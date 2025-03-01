@@ -3,7 +3,10 @@
 use log::info;
 use sha2::{Digest, Sha256};
 use std::{
-    borrow::Cow, fs::File, io::{Read, Result as IOResult}, path::{Path, PathBuf}
+    borrow::Cow,
+    fs::File,
+    io::{Read, Result as IOResult},
+    path::{Path, PathBuf},
 };
 
 /// Create a directory if it doesn't exist.
