@@ -23,10 +23,7 @@
 //! Cosine similarity between two embeddings can be calculated using [`cosine_similarity`](Embedding::cosine_similarity) method.
 
 use super::SenseError;
-use std::{
-    convert::TryFrom,
-    ops::Deref,
-};
+use std::{convert::TryFrom, ops::Deref};
 
 /// Raw embedding representation.
 pub type EmbeddingRaw = [f32; 1024];
@@ -104,8 +101,7 @@ impl TryFrom<&[f32]> for Embedding {
     /// Returns [`DimensionMismatch`](SenseError::DimensionMismatch) if the length of the input slice is not 1024.
     fn try_from(value: &[f32]) -> Result<Self, Self::Error> {
         let embedding: EmbeddingRaw = value
-            .try_into()
-            .map_err(|_| SenseError::DimensionMismatch)?;
+            .try_into()?;
         Ok(Self::from(embedding))
     }
 }
@@ -120,8 +116,7 @@ impl TryFrom<&[u8]> for Embedding {
     /// Returns [`DimensionMismatch`](SenseError::DimensionMismatch) if the length of the input slice is not 1024 * 4.
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         let bytes: EmbeddingBytes = value
-            .try_into()
-            .map_err(|_| SenseError::DimensionMismatch)?;
+            .try_into()?;
         Ok(Self::from(bytes))
     }
 }
@@ -136,8 +131,7 @@ impl TryFrom<Vec<f32>> for Embedding {
     /// Returns [`DimensionMismatch`](SenseError::DimensionMismatch) if the length of the input vector is not 1024.
     fn try_from(value: Vec<f32>) -> Result<Self, Self::Error> {
         let embedding: EmbeddingRaw = value
-            .try_into()
-            .map_err(|_| SenseError::DimensionMismatch)?;
+            .try_into()?;
         Ok(Self::from(embedding))
     }
 }
@@ -152,8 +146,7 @@ impl TryFrom<Vec<u8>> for Embedding {
     /// Returns [`DimensionMismatch`](SenseError::DimensionMismatch) if the length of the input vector is not 1024 * 4.
     fn try_from(value: Vec<u8>) -> Result<Self, Self::Error> {
         let bytes: EmbeddingBytes = value
-            .try_into()
-            .map_err(|_| SenseError::DimensionMismatch)?;
+            .try_into()?;
         Ok(Self::from(bytes))
     }
 }

@@ -9,7 +9,8 @@
 
 pub mod embedding;
 mod error;
-mod silicon_flow;
+mod api;
 
 pub use embedding::Embedding;
 pub use error::SenseError;
+pub use api::{ApiKey, ApiClient, Model};
