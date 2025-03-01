@@ -19,3 +19,7 @@ Alternatively, provide the API key inline:
 ```bash
 SILICONFLOW_API_KEY=sk-1234567890abcdef1234567890abcdef1234567890abcdef cargo test -- --ignored
 ```
+
+## `.sense` directory structure
+
+- `config.toml`: Configuration file for the CLI.

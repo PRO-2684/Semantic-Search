@@ -31,6 +31,12 @@ impl Default for Model {
     }
 }
 
+impl ToString for Model {
+    fn to_string(&self) -> String {
+        self.doc_dyn().unwrap().to_string()
+    }
+}
+
 /// Validate that the API key is well-formed.
 fn validate_api_key(key: &str) -> Result<(), SenseError> {
     if key.len() != 51 {
