@@ -1,12 +1,14 @@
 #![warn(clippy::all, clippy::nursery, clippy::pedantic, clippy::cargo)]
 
-use std::io::Write;
+use anyhow::{Context, Result};
 use env_logger::Env;
 use log::debug;
 use semantic_search_cli::{execute, parse_config, Args};
+use std::io::Write;
 use std::path::Path;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+#[tokio::main(flavor = "current_thread")]
+async fn main() -> Result<()> {
     env_logger::Builder::from_env(Env::default().default_filter_or("info"))
         .format(|buf, record| {
             let level = record.level();
@@ -19,15 +21,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     debug!("Args: {:?}", args);
     debug!("Working directory: {:?}", std::env::current_dir()?);
 
-    let config = parse_config(Path::new(".sense/config.toml")).map_err(|e| {
-        // Attach a custom message to the error
-        let msg = format!("Failed to parse config: {}", e);
-        std::io::Error::new(std::io::ErrorKind::Other, msg)
-    })?;
-    debug!("Server port: {}", config.port());
-    debug!("API key: {}", config.key());
+    let config = parse_config(Path::new(".sense/config.toml"))
+        .with_context(|| "Failed to parse config file, consider creating one")?;
 
-    execute(args.command, &config)?;
+    execute(args.command, config).await?;
 
     Ok(())
 }

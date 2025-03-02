@@ -34,6 +34,7 @@ pub type EmbeddingBytes = [u8; 1024 * 4];
 /// Wrapped embedding representation.
 ///
 /// See [module-level documentation](crate::embedding) for more details.
+#[derive(Debug, Clone, PartialEq)]
 pub struct Embedding {
     inner: EmbeddingRaw,
     norm: f32,
@@ -51,6 +52,15 @@ impl Embedding {
             .map(|(a, b)| a * b)
             .sum::<f32>();
         dot_product / (self.norm * other.norm)
+    }
+}
+
+impl Default for Embedding {
+    fn default() -> Self {
+        Self {
+            inner: [0.0; 1024],
+            norm: 0.0,
+        }
     }
 }
 

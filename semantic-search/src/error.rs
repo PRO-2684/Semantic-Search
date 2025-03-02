@@ -4,22 +4,29 @@
 
 use reqwest::Error as ReqwestError;
 use std::array::TryFromSliceError;
+use thiserror::Error;
 
 /// Possible errors.
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum SenseError {
     /// Embedding must be 1024-dimensional.
+    #[error("Embedding must be 1024-dimensional")]
     DimensionMismatch,
     /// Malformed API key.
+    #[error("Malformed API key")]
     MalformedApiKey,
     /// Request failed.
-    RequestFailed(ReqwestError),
+    #[error("Request failed. Make sure the API key is correct.")]
+    RequestFailed {
+        /// Source of the error.
+        source: ReqwestError,
+    },
 }
 
 impl From<ReqwestError> for SenseError {
     /// Error when request fails.
     fn from(error: ReqwestError) -> Self {
-        Self::RequestFailed(error)
+        Self::RequestFailed { source: error }
     }
 }
 

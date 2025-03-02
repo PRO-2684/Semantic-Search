@@ -1,119 +1,114 @@
 //! `index` subcommand
 
-use crate::util::{hash_file, init, walk_dir};
+use crate::{
+    util::{hash_file, iter_files, prompt, Database, Record},
+    Config,
+};
+use anyhow::{Context, Result};
 use argh::FromArgs;
 use log::{debug, warn};
-use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, fs::File, io::Result as IOResult};
+use semantic_search::{ApiClient, Model};
 
 /// generate index of the files
 #[derive(FromArgs, PartialEq, Eq, Debug)]
-#[argh(subcommand, name = "index")]
-pub struct Index {}
-
-/// An index record.
-#[derive(Serialize, Deserialize)]
-pub struct IndexRecord {
-    /// Path to the file (relative to working directory)
-    pub path: String,
-    /// SHA-256 hash of the file
-    pub hash: String,
-    /// Label of the file
-    pub label: String,
+#[argh(subcommand, name = "index", help_triggers("-h", "--help"))]
+pub struct Index {
+    /// skip prompting for labels and use empty labels
+    #[argh(switch, short = 'y')]
+    pub yes: bool,
 }
 
 /// Summary of the index operation.
 #[derive(Debug, Default)]
 pub struct IndexSummary {
-    /// Number of unchanged files
-    pub unchanged: usize,
     /// Number of changed files
     pub changed: usize,
     /// Number of new files
     pub new: usize,
+    /// Number of deleted files
+    pub deleted: usize,
 }
 
-/// Index files.
-pub fn index() -> IOResult<IndexSummary> {
-    init()?;
+impl Index {
+    /// Index files.
+    pub async fn execute(&self, config: Config) -> Result<IndexSummary> {
+        let db =
+            Database::open(".sense/index.db3", false).with_context(|| "Failed to open database")?;
+        let mut summary = IndexSummary::default();
+        let api = ApiClient::new(config.api.key, Model::BgeLargeZhV1_5)?;
+        let cwd = std::env::current_dir()?.canonicalize()?;
+        let files = iter_files(&cwd, &cwd);
+        summary.deleted = db.clean(&cwd)?;
 
-    // Read `.sense/index.csv` if it exists
-    let mut existing = HashMap::new();
-    if let Ok(index) = File::open(".sense/index.csv") {
-        let mut reader = csv::Reader::from_reader(index);
-        for result in reader.deserialize() {
-            let record: IndexRecord = result?;
-            existing.insert(record.path.clone(), record);
+        // For all files, calculate hash and write to database
+        for (path, relative) in files {
+            let hash = hash_file(&path)?;
+            let relative = relative.to_string();
+            let existing = db.get(&relative)?;
+
+            let record = match existing {
+                // If the file is already indexed
+                Some(mut record) => {
+                    let hash_changed = record.file_hash != hash;
+                    // Warn if the hash has changed
+                    if hash_changed {
+                        summary.changed += 1;
+                        debug!("[CHANGED] {relative}: {} -> {hash}", record.file_hash);
+                        warn!("Hash of {relative} has changed, consider relabeling");
+                        record.file_hash = hash;
+
+                        if !self.yes {
+                            println!("Existing label: {}", record.label);
+                            // Prompt for label
+                            let label = prompt(&format!("Label for {relative} (empty to keep): "))?;
+                            if !label.is_empty() {
+                                record.label = label;
+                                println!("Label updated to: {}", record.label);
+                                record.embedding = api.embed(&relative).await?.into();
+                            } else {
+                                println!("Label kept as: {}", record.label);
+                            }
+                        }
+                    } else {
+                        debug!("[SAME] {relative}: {hash}");
+                    }
+                    // Reuse the record
+                    record
+                }
+                // Generate a new record
+                None => {
+                    summary.new += 1;
+                    debug!("[NEW] {hash}: {relative}");
+                    warn!("New file: {relative}, consider labeling");
+
+                    let (label, embedding) = if self.yes {
+                        // Use filename as label
+                        let label = path.file_stem().unwrap().to_string_lossy();
+                        (label.to_string(), api.embed(&relative).await?.into())
+                    } else {
+                        let label =
+                            prompt(&format!("Label for {relative} (empty to use filename): "))?;
+                        if label.is_empty() {
+                            // Use filename as label
+                            let label = path.file_stem().unwrap().to_string_lossy();
+                            (label.to_string(), api.embed(&relative).await?.into())
+                        } else {
+                            let embedding = api.embed(&relative).await?;
+                            (label, embedding.into())
+                        }
+                    };
+                    Record {
+                        file_path: relative,
+                        file_hash: hash,
+                        label,
+                        embedding,
+                    }
+                }
+            };
+
+            db.insert(record)?;
         }
-    }
 
-    // Overwrite `.sense/index.csv` if it exists
-    let mut summary = IndexSummary::default();
-    let index = File::create(".sense/index.csv")?;
-    let mut writer = csv::Writer::from_writer(index);
-    debug!("Index file created.");
-
-    // For all files, calculate hash and write to `.sense/index.csv`
-    let cwd = std::env::current_dir()?.canonicalize()?;
-    walk_dir(&cwd, &cwd, &mut |path, relative| {
-        let hash = hash_file(path)?;
-        let relative = relative.to_string();
-
-        let record = match existing.remove(&relative) {
-            // If the file is already indexed
-            Some(mut record) => {
-                // Warn if the hash has changed
-                if record.hash != hash {
-                    summary.changed += 1;
-                    warn!("Hash of {relative} has changed, consider relabeling",);
-                    debug!("[CHANGED] {relative}: {} -> {hash}", record.hash);
-                    record.hash = hash;
-                } else {
-                    summary.unchanged += 1;
-                    debug!("[SAME] {relative}: {hash}");
-                }
-                // Reuse the record
-                record
-            }
-            // Generate a new record
-            None => {
-                summary.new += 1;
-                debug!("[NEW] {hash}: {relative}");
-                IndexRecord {
-                    path: relative,
-                    hash,
-                    label: "".into(),
-                }
-            }
-        };
-
-        writer.serialize(record)?;
-        Ok(())
-    })?;
-
-    Ok(summary)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::error::Error;
-
-    #[test]
-    fn serialize() -> Result<(), Box<dyn Error>> {
-        let mut writer = csv::Writer::from_writer(vec![]);
-        writer.serialize(IndexRecord {
-            path: "LICENSE".into(),
-            hash: "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986".into(),
-            label: "My Label".into(),
-        })?;
-
-        let data = String::from_utf8(writer.into_inner()?)?;
-        assert_eq!(
-            data,
-            "path,hash,label\nLICENSE,3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986,My Label\n"
-        );
-
-        Ok(())
+        Ok(summary)
     }
 }

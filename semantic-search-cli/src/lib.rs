@@ -9,11 +9,11 @@ pub mod commands;
 mod config;
 mod util;
 
+use anyhow::Result;
 use argh::FromArgs;
 use commands::Command;
 pub use config::{parse_config, Config};
 use log::{debug, info, warn};
-use std::io::Result as IOResult;
 
 /// 🔎 Semantic search.
 #[derive(FromArgs, Debug)]
@@ -29,26 +29,36 @@ pub struct Args {
 /// # Errors
 ///
 /// Returns an [IO error](std::io::Error) if reading or writing fails.
-pub fn execute(command: Command, config: &Config) -> IOResult<()> {
+pub async fn execute(command: Command, config: Config) -> Result<()> {
     debug!("Executing command: {:?}", command);
     debug!("Config: {:?}", config);
 
     match command {
-        Command::Index(_) => {
+        Command::Index(index) => {
             info!("Indexing files...");
-            let summary = commands::index()?;
+            let summary = index.execute(config).await?;
             let attention_required = summary.changed + summary.new > 0;
             info!("Indexing complete!");
             if attention_required {
-                warn!("{} files changed, {} files added.", summary.changed, summary.new);
-                warn!("Consider labeling the files at `.sense/index.csv` and re-embedding.");
+                info!(
+                    "Attention: {} file(s) changed, {} file(s) created. ⭐",
+                    summary.changed, summary.new
+                );
+            } else if summary.deleted > 0 {
+                info!("{} file(s) deleted since last index. 🗑️", summary.deleted);
             } else {
                 info!("No changes detected. ☕");
             }
-        },
-        Command::Embed(embed) => embed.execute(&config.key()),
-        Command::Search(search) => search.execute(&config.key()),
-        Command::Serve(serve) => serve.execute(config.port(), &config.key()),
+        }
+        Command::Search(search) => {
+            let results = search.execute(config).await?;
+            for (file_path, similarity) in results {
+                let percent = similarity * 100.0;
+                println!("{percent:.2}%: {file_path}");
+            }
+        }
+        Command::Telegram(telegram) => telegram.execute(config).await?,
+        Command::Serve(serve) => serve.execute(config).await?,
     };
 
     Ok(())

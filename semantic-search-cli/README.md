@@ -26,31 +26,22 @@ port = 8080 # Default port for the server (Optional)
 key = "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" # API key for SiliconCloud (Required)
 model = "BAAI/bge-large-zh-v1.5" # Model to use for embedding (Optional)
 # Available models: BAAI/bge-large-zh-v1.5, BAAI/bge-large-en-v1.5, netease-youdao/bce-embedding-base_v1, BAAI/bge-m3, Pro/BAAI/bge-m3
+
+[bot]
+token = "1234567890:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" # Telegram bot token (Required for `sense bot`)
 ```
 
 ### Indexing
 
-Index the files you want to search for by executing the following command:
+(Re-)Index the files you want to search for by executing the following command:
 
 ```bash
 sense index
 ```
 
-This will generate an index of the files and their hashes in `.sense/index.csv`. Note that each time you add or remove files, you need to re-run this process.
+This will generate or update index of the files, their hashes, labels and embeddings in `.sense/index.db3`. Note that each time you add or remove files, you need to re-run this process.
 
-### Labeling
-
-Label your files at `.sense/index.csv` either manually or using any tool of your choice.
-
-### Embedding
-
-Execute the following command to generate embeddings for the labels:
-
-```bash
-sense embed
-```
-
-This will generate embeddings for each label and store them in `.sense/embeddings.json`. Note that each time you add or remove files, you need to re-run this process.
+If files are created or changed, running this command will prompt you to label them (again). You can use any tool of your choice to label them automatically. See [DEV.md](../docs/DEV.md) for more information on the database schema.
 
 ## Usage
 
@@ -74,6 +65,14 @@ Also, you can specify the extension of the files you want to search for using th
 sense search "cute cat" --ext "jpg"
 ```
 
+### Telegram Bot
+
+You can start a Telegram bot to search for files using a chat interface:
+
+```bash
+sense tg
+```
+
 ### Server
 
 You can start a server to search for files using a REST API:
@@ -92,9 +91,9 @@ $ curl -X POST http://localhost:8080/search -d '{"query": "cute cat", "limit": 5
 ## ☑️ TODOs
 
 - [ ] Implement aforementioned features
-    - [ ] Indexing
-    - [ ] Labeling
-    - [ ] Embedding
-    - [ ] Searching
+    - [x] Indexing
+    - [x] Labeling
+    - [x] Embedding
+    - [x] Searching
     - [ ] Server
-- [ ] Incremental update
+- [x] Incremental update
