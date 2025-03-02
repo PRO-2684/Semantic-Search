@@ -36,7 +36,7 @@ model = "BAAI/bge-large-zh-v1.5" # Model to use for embedding (Optional)
 sense index
 ```
 
-This will generate or update index of the files, their hashes, labels and embeddings in `.sense/index.db`. Note that each time you add or remove files, you need to re-run this process.
+This will generate or update index of the files, their hashes, labels and embeddings in `.sense/index.db3`. Note that each time you add or remove files, you need to re-run this process.
 
 If files are created or changed, running this command will prompt you to label them (again). You can use any tool of your choice to label them automatically. See [DEV.md](../docs/DEV.md) for more information on the database schema.
 

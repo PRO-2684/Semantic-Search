@@ -6,7 +6,8 @@ use log::debug;
 use semantic_search_cli::{execute, parse_config, Args};
 use std::path::Path;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+#[tokio::main(flavor = "current_thread")]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::Builder::from_env(Env::default().default_filter_or("info"))
         .format(|buf, record| {
             let level = record.level();
@@ -27,7 +28,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     debug!("Server port: {}", config.port());
     debug!("API key: {}", config.key());
 
-    execute(args.command, &config)?;
+    execute(args.command, &config).await?;
 
     Ok(())
 }

@@ -1,33 +1,17 @@
 //! `index` subcommand
 
-use crate::{util::{hash_file, init, walk_dir}, Config};
+use crate::{util::{hash_file, Database, iter_files, Record}, Config};
 use argh::FromArgs;
 use log::{debug, warn};
-use semantic_search::{ApiClient, Embedding, Model, SenseError};
-use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, fs::File};
+use semantic_search::{ApiClient, Embedding, Model};
 
 /// generate index of the files
 #[derive(FromArgs, PartialEq, Eq, Debug)]
 #[argh(subcommand, name = "index")]
 pub struct Index {
-    /// reset the index and start from scratch
-    #[argh(switch)]
-    pub reset: bool,
     /// skip prompting for labels and use empty labels
     #[argh(switch, short = 'y')]
     pub yes: bool,
-}
-
-/// An index record.
-#[derive(Serialize, Deserialize)]
-pub struct IndexRecord {
-    /// Path to the file (relative to working directory)
-    pub path: String,
-    /// SHA-256 hash of the file
-    pub hash: String,
-    /// Label of the file
-    pub label: String,
 }
 
 /// Summary of the index operation.
@@ -43,45 +27,44 @@ pub struct IndexSummary {
 
 impl Index {
     /// Index files.
-    pub fn execute(&self, config: &Config) -> Result<IndexSummary, Box<dyn std::error::Error>> {
-        init()?;
-
-        // Read `.sense/index.csv` if it exists
-        let mut existing = HashMap::new();
-        if !self.reset {
-            if let Ok(index) = File::open(".sense/index.csv") {
-                let mut reader = csv::Reader::from_reader(index);
-                for result in reader.deserialize() {
-                    let record: IndexRecord = result?;
-                    existing.insert(record.path.clone(), record);
-                }
-            }
-        }
-
-        // Overwrite `.sense/index.csv` if it exists
+    pub async fn execute(&self, config: &Config) -> Result<IndexSummary, Box<dyn std::error::Error>> {
+        let db = Database::open()?;
         let mut summary = IndexSummary::default();
-        let index = File::create(".sense/index.csv")?;
-        let mut writer = csv::Writer::from_writer(index);
-        debug!("Index file created.");
 
         // Initialize the API client
         let api = ApiClient::new(config.key().to_owned(), Model::BgeLargeZhV1_5)?;
 
-        // For all files, calculate hash and write to `.sense/index.csv`
+        // For all files, calculate hash and write to database
         let cwd = std::env::current_dir()?.canonicalize()?;
-        walk_dir(&cwd, &cwd, &mut |path, relative| {
+        // walk_dir(&cwd, &cwd, &mut async |path, relative| {
+        // })?;
+
+        let files = iter_files(&cwd, &cwd)?;
+        for (path, relative) in files {
             let hash = hash_file(path)?;
             let relative = relative.to_string();
+            let existing = db.get(&relative)?;
 
-            let record = match existing.remove(&relative) {
+            let record = match existing {
                 // If the file is already indexed
                 Some(mut record) => {
                     // Warn if the hash has changed
-                    if record.hash != hash {
+                    if record.file_hash != hash {
                         summary.changed += 1;
-                        warn!("Hash of {relative} has changed, consider relabeling",);
-                        debug!("[CHANGED] {relative}: {} -> {hash}", record.hash);
-                        record.hash = hash;
+                        debug!("[CHANGED] {relative}: {} -> {hash}", record.file_hash);
+                        warn!("Hash of {relative} has changed, consider relabeling");
+                        if !self.yes {
+                            // Prompt for label
+                            println!("Existing label: {}", record.label);
+                            print!("Label for {relative} (empty to keep): ");
+                            let mut label = String::new();
+                            std::io::stdin().read_line(&mut label)?;
+                            label = label.trim().to_owned();
+                            if !label.is_empty() {
+                                record.label = label;
+                            }
+                        }
+                        record.file_hash = hash;
                     } else {
                         summary.unchanged += 1;
                         debug!("[SAME] {relative}: {hash}");
@@ -93,42 +76,58 @@ impl Index {
                 None => {
                     summary.new += 1;
                     debug!("[NEW] {hash}: {relative}");
-                    IndexRecord {
-                        path: relative,
-                        hash,
-                        label: "".into(),
+                    println!("New file: {relative}");
+                    let (label, embedding) = if self.yes {
+                        ("".into(), Embedding::default())
+                    } else {
+                        print!("Label for {relative} (empty to skip): ");
+                        let mut label = String::new();
+                        std::io::stdin().read_line(&mut label)?;
+                        let label = label.trim().to_owned();
+                        if label.is_empty() {
+                            (label, Embedding::default())
+                        } else {
+                            let embedding = api.embed(&relative).await?;
+                            (label, embedding.into())
+                        }
+                    };
+                    Record {
+                        file_path: relative,
+                        file_hash: hash,
+                        label,
+                        embedding,
                     }
                 }
             };
 
-            writer.serialize(record)?;
-            Ok(())
-        })?;
+            db.insert(record)?;
+        }
 
         Ok(summary)
     }
 }
+
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::error::Error;
 
-    #[test]
-    fn serialize() -> Result<(), Box<dyn Error>> {
-        let mut writer = csv::Writer::from_writer(vec![]);
-        writer.serialize(IndexRecord {
-            path: "LICENSE".into(),
-            hash: "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986".into(),
-            label: "My Label".into(),
-        })?;
+    // #[test]
+    // fn serialize() -> Result<(), Box<dyn Error>> {
+    //     let mut writer = csv::Writer::from_writer(vec![]);
+    //     writer.serialize(IndexRecord {
+    //         path: "LICENSE".into(),
+    //         hash: "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986".into(),
+    //         label: "My Label".into(),
+    //     })?;
 
-        let data = String::from_utf8(writer.into_inner()?)?;
-        assert_eq!(
-            data,
-            "path,hash,label\nLICENSE,3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986,My Label\n"
-        );
+    //     let data = String::from_utf8(writer.into_inner()?)?;
+    //     assert_eq!(
+    //         data,
+    //         "path,hash,label\nLICENSE,3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986,My Label\n"
+    //     );
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 }

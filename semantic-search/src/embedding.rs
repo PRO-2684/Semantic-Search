@@ -54,6 +54,15 @@ impl Embedding {
     }
 }
 
+impl Default for Embedding {
+    fn default() -> Self {
+        Self {
+            inner: [0.0; 1024],
+            norm: 0.0,
+        }
+    }
+}
+
 // Convertion
 
 impl From<EmbeddingRaw> for Embedding {

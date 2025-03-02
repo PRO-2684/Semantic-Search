@@ -28,14 +28,14 @@ pub struct Args {
 /// # Errors
 ///
 /// Returns an [IO error](std::io::Error) if reading or writing fails.
-pub fn execute(command: Command, config: &Config) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn execute(command: Command, config: &Config) -> Result<(), Box<dyn std::error::Error>> {
     debug!("Executing command: {:?}", command);
     debug!("Config: {:?}", config);
 
     match command {
         Command::Index(index) => {
             info!("Indexing files...");
-            let summary = index.execute(&config)?;
+            let summary = index.execute(&config).await?;
             let attention_required = summary.changed + summary.new > 0;
             info!("Indexing complete!");
             if attention_required {

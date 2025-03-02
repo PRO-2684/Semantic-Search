@@ -5,7 +5,7 @@ mod search;
 mod serve;
 
 use argh::FromArgs;
-pub use index::{Index, IndexRecord};
+pub use index::Index;
 
 /// Possible commands.
 #[derive(FromArgs, PartialEq, Eq, Debug)]
