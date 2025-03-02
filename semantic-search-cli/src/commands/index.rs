@@ -20,12 +20,12 @@ pub struct Index {
 /// Summary of the index operation.
 #[derive(Debug, Default)]
 pub struct IndexSummary {
-    /// Number of unchanged files
-    pub unchanged: usize,
     /// Number of changed files
     pub changed: usize,
-    /// Number of new files
-    pub new: usize,
+    /// Number of deleted files
+    pub deleted: usize,
+    /// Number of unlabeled files
+    pub unlabeled: usize,
 }
 
 impl Index {
@@ -36,13 +36,12 @@ impl Index {
     ) -> Result<IndexSummary, Box<dyn std::error::Error>> {
         let db = Database::open(".sense/index.db3")?;
         let mut summary = IndexSummary::default();
-
-        // Initialize the API client
         let api = ApiClient::new(config.key().to_owned(), Model::BgeLargeZhV1_5)?;
-
-        // For all files, calculate hash and write to database
         let cwd = std::env::current_dir()?.canonicalize()?;
         let files = iter_files(&cwd, &cwd)?;
+        summary.deleted = db.clean(&cwd)?;
+
+        // For all files, calculate hash and write to database
         for (path, relative) in files {
             let hash = hash_file(path)?;
             let relative = relative.to_string();
@@ -51,22 +50,34 @@ impl Index {
             let record = match existing {
                 // If the file is already indexed
                 Some(mut record) => {
+                    let hash_changed = record.file_hash != hash;
+                    let empty_label = record.label.is_empty();
                     // Warn if the hash has changed
-                    if record.file_hash != hash {
-                        summary.changed += 1;
-                        debug!("[CHANGED] {relative}: {} -> {hash}", record.file_hash);
-                        warn!("Hash of {relative} has changed, consider relabeling");
+                    if hash_changed || empty_label {
+                        if hash_changed {
+                            summary.changed += 1;
+                            debug!("[CHANGED] {relative}: {} -> {hash}", record.file_hash);
+                            warn!("Hash of {relative} has changed, consider relabeling");
+                            record.file_hash = hash;
+                        }
+
+                        if empty_label {
+                            summary.unlabeled += 1;
+                            warn!("Label of {relative} is empty, consider labeling");
+                        }
+
                         if !self.yes {
-                            // Prompt for label
                             println!("Existing label: {}", record.label);
+                            // Prompt for label
                             let label = prompt(&format!("Label for {relative} (empty to keep): "))?;
                             if !label.is_empty() {
                                 record.label = label;
+                                println!("Label updated to: {}", record.label);
+                            } else {
+                                println!("Label kept as: {}", record.label);
                             }
                         }
-                        record.file_hash = hash;
                     } else {
-                        summary.unchanged += 1;
                         debug!("[SAME] {relative}: {hash}");
                     }
                     // Reuse the record
@@ -74,14 +85,16 @@ impl Index {
                 }
                 // Generate a new record
                 None => {
-                    summary.new += 1;
                     debug!("[NEW] {hash}: {relative}");
-                    println!("New file: {relative}");
+                    warn!("New file: {relative}, consider labeling");
+
                     let (label, embedding) = if self.yes {
+                        summary.unlabeled += 1;
                         ("".into(), Embedding::default())
                     } else {
                         let label = prompt(&format!("Label for {relative} (empty to skip): "))?;
                         if label.is_empty() {
+                            summary.unlabeled += 1;
                             (label, Embedding::default())
                         } else {
                             let embedding = api.embed(&relative).await?;
@@ -102,10 +115,4 @@ impl Index {
 
         Ok(summary)
     }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::error::Error;
 }

@@ -1,7 +1,7 @@
 //! Utility functions for the semantic search CLI.
 
 use log::info;
-use rusqlite::{Connection, Result as SqlResult};
+use rusqlite::{Connection, OptionalExtension, Result as SqlResult};
 use semantic_search::{embedding::EmbeddingBytes, Embedding};
 use sha2::{Digest, Sha256};
 use std::{
@@ -163,33 +163,60 @@ impl Database {
         let mut stmt = self.conn.prepare(&format!(
             "SELECT file_hash, label, embedding FROM {TABLE_NAME} WHERE file_path = ?"
         ))?;
-        let mut rows = stmt.query([&file_path])?;
 
-        if let Some(row) = rows.next()? {
+        stmt.query_row([&file_path], |row| {
             let file_hash: String = row.get(0)?;
             let label: String = row.get(1)?;
             let bytes: EmbeddingBytes = row.get(2)?;
             let embedding: Embedding = bytes.into();
 
-            Ok(Some(Record {
+            Ok(Record {
                 file_path: file_path.to_owned(),
                 file_hash,
                 label,
                 embedding,
-            }))
-        } else {
-            Ok(None)
-        }
+            })
+        }).optional()
     }
 
     /// Delete a record from the database.
-    pub fn delete(&self, file_path: &str) -> SqlResult<()> {
+    fn delete(&self, file_path: &str) -> SqlResult<()> {
         self.conn.execute(
             &format!("DELETE FROM {TABLE_NAME} WHERE file_path = ?"),
             [&file_path],
         )?;
 
         Ok(())
+    }
+
+    /// Filter out all satisfying records (path only).
+    fn filter<T>(&self, predicate: T) -> Vec<String>
+    where
+        T: FnMut(&String) -> bool,{
+        self.conn
+            .prepare(&format!("SELECT file_path FROM {TABLE_NAME}"))
+            .unwrap()
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .map(|result| result.unwrap())
+            .filter(predicate)
+            .collect()
+    }
+
+    /// Clean up the database, removing records that no longer exist on disk.
+    pub fn clean<T>(&self, ref_path: T) -> SqlResult<usize>
+    where
+        T: AsRef<Path>,
+    {
+        let ref_path = ref_path.as_ref();
+        let to_delete = self.filter(|path| !ref_path.join(path).exists());
+        let count = to_delete.len();
+
+        for path in to_delete {
+            self.delete(&path)?;
+        }
+
+        Ok(count)
     }
 }
 

@@ -1,5 +1,3 @@
-set working-directory := "tests"
-
 alias b := build
 # alias v := bump
 alias r := run
@@ -19,7 +17,7 @@ build:
 # Compile and run
 [doc("Compile and \u{001b}[4mr\u{001b}[24mun")]
 run *args:
-    cargo run -- {{args}}
+    cd tests && cargo run -- {{args}}
 
 # Compile and run (with debug logging)
 [doc("Compile and run (with \u{001b}[4md\u{001b}[24mebug logging)")]
