@@ -1,15 +1,14 @@
 //! Utility functions for the semantic search CLI.
 
 use log::info;
-use semantic_search::{Embedding, embedding::EmbeddingBytes};
+use rusqlite::{Connection, Result as SqlResult};
+use semantic_search::{embedding::EmbeddingBytes, Embedding};
 use sha2::{Digest, Sha256};
 use std::{
-    borrow::Cow,
     fs::File,
-    io::{Read, Result as IOResult, Write},
+    io::{self, Read, Result as IOResult, Write},
     path::{Path, PathBuf},
 };
-use rusqlite::{blob::{Blob, ZeroBlob}, Connection, Result as SqlResult};
 
 const TABLE_NAME: &str = "files";
 
@@ -33,57 +32,49 @@ pub fn hash_file<T: AsRef<Path>>(file: T) -> IOResult<String> {
     Ok(result)
 }
 
-/// Walk a directory and call a function on each file path and its relative path to `ref_path`, skipping entries starting with `.`.
-///
-/// Note that it assumes `dir` and `ref_path` are canonicalized directories.
-pub fn walk_dir<T1: AsRef<Path>, T2: AsRef<Path>>(
-    dir: T1,
-    ref_path: T2,
-    func: &mut impl FnMut(&PathBuf, Cow<'_, str>) -> Result<(), Box<dyn std::error::Error>>,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let ref_path = ref_path.as_ref();
-
-    for entry in std::fs::read_dir(dir)? {
-        let entry = entry?;
-        let path = entry.path();
-        if path.file_name().unwrap().to_string_lossy().starts_with('.') {
-            continue;
-        }
-        let path = path.canonicalize()?;
-        if path.is_dir() {
-            walk_dir(&path, ref_path, func)?;
-        } else {
-            // Get relative path (relative to `ref_path`)
-            let relative = path.strip_prefix(ref_path).unwrap().to_string_lossy();
-
-            func(&path, relative)?;
-        }
-    }
-
-    Ok(())
-}
-
 /// Check if a file is hidden.
 fn is_hidden(entry: &Path) -> bool {
-    entry.file_name().unwrap().to_string_lossy().starts_with('.')
+    entry
+        .file_name()
+        .unwrap()
+        .to_string_lossy()
+        .starts_with('.')
 }
 
 /// Returns an iterator of all files in a directory, skipping hidden files.
-pub fn iter_files<'a, T1: AsRef<Path>, T2: AsRef<Path> + 'a>(dir: T1, ref_path: T2) -> IOResult<impl Iterator<Item = (PathBuf, String)>> {
+pub fn iter_files<'a, T1: AsRef<Path>, T2: AsRef<Path> + 'a>(
+    dir: T1,
+    ref_path: T2,
+) -> IOResult<impl Iterator<Item = (PathBuf, String)>> {
     // TODO: Recursive
     let iter = std::fs::read_dir(dir)?
         .filter_map(|entry| entry.ok())
         .map(|entry| entry.path())
         .filter(|path| path.is_file() && !is_hidden(path))
         .map(move |path| {
-            let relative = path.strip_prefix(ref_path.as_ref()).unwrap().to_string_lossy().to_string();
+            let relative = path
+                .strip_prefix(ref_path.as_ref())
+                .unwrap()
+                .to_string_lossy()
+                .to_string();
             (path, relative)
         });
 
     Ok(iter)
 }
 
+/// Prompt for user input.
+pub fn prompt(message: &str) -> IOResult<String> {
+    print!("{message}");
+    io::stdout().flush()?;
+
+    let mut input = String::new();
+    io::stdin().read_line(&mut input)?;
+    Ok(input.trim().to_owned())
+}
+
 /// A record in the database.
+#[derive(Debug, PartialEq, Clone)]
 pub struct Record {
     /// Path to the file (relative to working directory)
     pub file_path: String,
@@ -102,30 +93,43 @@ pub struct Database {
 
 impl Database {
     /// Open a database connection, creating if not exists.
-    pub fn open() -> SqlResult<Self> {
-        let db_path = Path::new(".sense/index.db3");
-        let exists = db_path.exists();
-        let conn = Connection::open(db_path)?;
+    pub fn open<T: AsRef<Path>>(path: T) -> SqlResult<Self> {
+        let path = path.as_ref();
+        let exists = path.exists();
+        let conn = Connection::open(path)?;
 
-        if exists {
-            return Ok(Self { conn });
+        if !exists {
+            info!("Initializing database...");
+            Self::init(&conn)?;
         }
 
-        info!("Initializing database...");
+        Ok(Self { conn })
+    }
 
+    /// Open a database connection in memory for testing.
+    #[cfg(test)]
+    pub fn dummy() -> SqlResult<Self> {
+        let conn = Connection::open_in_memory()?;
+        Self::init(&conn)?;
+
+        Ok(Self { conn })
+    }
+
+    /// Initialize the database.
+    fn init(conn: &Connection) -> SqlResult<()> {
         conn.execute(
             &format!(
                 "CREATE TABLE {TABLE_NAME} (
-                    file_path TEXT PRIMARY KEY,
-                    file_hash TEXT NOT NULL,
-                    label TEXT NOT NULL,
-                    embedding BLOB NOT NULL
+                file_path TEXT PRIMARY KEY,
+                file_hash TEXT NOT NULL,
+                label TEXT NOT NULL,
+                embedding BLOB NOT NULL
                 )"
             ),
             [],
         )?;
 
-        Ok(Self { conn })
+        Ok(())
     }
 
     /// Insert a record into the database, replacing if exists.
@@ -141,20 +145,24 @@ impl Database {
             ],
         )?;
         let row_id = self.conn.last_insert_rowid();
-        let mut blob = self.conn.blob_open(rusqlite::DatabaseName::Main, TABLE_NAME, "embedding", row_id, false)?;
+        let mut blob = self.conn.blob_open(
+            rusqlite::DatabaseName::Main,
+            TABLE_NAME,
+            "embedding",
+            row_id,
+            false,
+        )?;
         let bytes: EmbeddingBytes = record.embedding.into();
-        blob.write_at(&bytes, 0);
+        blob.write_at(&bytes, 0)?;
 
         Ok(())
     }
 
     /// Get a record from the database.
     pub fn get(&self, file_path: &str) -> SqlResult<Option<Record>> {
-        let mut stmt = self.conn.prepare(
-            &format!(
-                "SELECT file_hash, label, embedding FROM {TABLE_NAME} WHERE file_path = ?"
-            ),
-        )?;
+        let mut stmt = self.conn.prepare(&format!(
+            "SELECT file_hash, label, embedding FROM {TABLE_NAME} WHERE file_path = ?"
+        ))?;
         let mut rows = stmt.query([&file_path])?;
 
         if let Some(row) = rows.next()? {
@@ -173,6 +181,16 @@ impl Database {
             Ok(None)
         }
     }
+
+    /// Delete a record from the database.
+    pub fn delete(&self, file_path: &str) -> SqlResult<()> {
+        self.conn.execute(
+            &format!("DELETE FROM {TABLE_NAME} WHERE file_path = ?"),
+            [&file_path],
+        )?;
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -188,5 +206,46 @@ mod tests {
             hash,
             "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986"
         );
+    }
+
+    #[tokio::test]
+    async fn test_db() {
+        let db = Database::dummy().unwrap();
+        let mut record = Record {
+            file_path: "test_file_path".to_owned(),
+            file_hash: "test_file_hash".to_owned(),
+            label: "test_label".to_owned(),
+            embedding: Embedding::default(),
+        };
+        let record2 = Record {
+            file_path: "test_file_path2".to_owned(),
+            file_hash: "test_file_hash2".to_owned(),
+            label: "test_label2".to_owned(),
+            embedding: Embedding::from([2.3; 1024]),
+        };
+
+        // Insert record
+        db.insert(record.clone()).unwrap();
+        db.insert(record2.clone()).unwrap();
+        let result = db.get(&record.file_path).unwrap().unwrap();
+        assert_eq!(result, record);
+        let result = db.get(&record2.file_path).unwrap().unwrap();
+        assert_eq!(result, record2);
+
+        // Update record
+        record.label = "new_label".to_owned();
+        record.embedding = Embedding::from([1.2; 1024]);
+        db.insert(record.clone()).unwrap();
+        let result = db.get(&record.file_path).unwrap().unwrap();
+        assert_eq!(result, record);
+        let result = db.get(&record2.file_path).unwrap().unwrap();
+        assert_eq!(result, record2);
+
+        // Delete record
+        db.delete(&record.file_path).unwrap();
+        let result = db.get(&record.file_path).unwrap();
+        assert_eq!(result, None);
+        let result = db.get(&record2.file_path).unwrap().unwrap();
+        assert_eq!(result, record2);
     }
 }

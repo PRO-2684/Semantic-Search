@@ -39,11 +39,14 @@ pub async fn execute(command: Command, config: &Config) -> Result<(), Box<dyn st
             let attention_required = summary.changed + summary.new > 0;
             info!("Indexing complete!");
             if attention_required {
-                info!("{} files changed, {} files added. ⭐", summary.changed, summary.new);
+                info!(
+                    "{} files changed, {} files added. ⭐",
+                    summary.changed, summary.new
+                );
             } else {
                 info!("No changes detected. ☕");
             }
-        },
+        }
         Command::Search(search) => search.execute(config.key()),
         Command::Serve(serve) => serve.execute(config.port(), config.key()),
     };

@@ -1,9 +1,9 @@
 #![warn(clippy::all, clippy::nursery, clippy::pedantic, clippy::cargo)]
 
-use std::io::Write;
 use env_logger::Env;
 use log::debug;
 use semantic_search_cli::{execute, parse_config, Args};
+use std::io::Write;
 use std::path::Path;
 
 #[tokio::main(flavor = "current_thread")]

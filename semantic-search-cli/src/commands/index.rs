@@ -1,6 +1,9 @@
 //! `index` subcommand
 
-use crate::{util::{hash_file, Database, iter_files, Record}, Config};
+use crate::{
+    util::{hash_file, iter_files, prompt, Database, Record},
+    Config,
+};
 use argh::FromArgs;
 use log::{debug, warn};
 use semantic_search::{ApiClient, Embedding, Model};
@@ -27,8 +30,11 @@ pub struct IndexSummary {
 
 impl Index {
     /// Index files.
-    pub async fn execute(&self, config: &Config) -> Result<IndexSummary, Box<dyn std::error::Error>> {
-        let db = Database::open()?;
+    pub async fn execute(
+        &self,
+        config: &Config,
+    ) -> Result<IndexSummary, Box<dyn std::error::Error>> {
+        let db = Database::open(".sense/index.db3")?;
         let mut summary = IndexSummary::default();
 
         // Initialize the API client
@@ -36,9 +42,6 @@ impl Index {
 
         // For all files, calculate hash and write to database
         let cwd = std::env::current_dir()?.canonicalize()?;
-        // walk_dir(&cwd, &cwd, &mut async |path, relative| {
-        // })?;
-
         let files = iter_files(&cwd, &cwd)?;
         for (path, relative) in files {
             let hash = hash_file(path)?;
@@ -56,10 +59,7 @@ impl Index {
                         if !self.yes {
                             // Prompt for label
                             println!("Existing label: {}", record.label);
-                            print!("Label for {relative} (empty to keep): ");
-                            let mut label = String::new();
-                            std::io::stdin().read_line(&mut label)?;
-                            label = label.trim().to_owned();
+                            let label = prompt(&format!("Label for {relative} (empty to keep): "))?;
                             if !label.is_empty() {
                                 record.label = label;
                             }
@@ -80,10 +80,7 @@ impl Index {
                     let (label, embedding) = if self.yes {
                         ("".into(), Embedding::default())
                     } else {
-                        print!("Label for {relative} (empty to skip): ");
-                        let mut label = String::new();
-                        std::io::stdin().read_line(&mut label)?;
-                        let label = label.trim().to_owned();
+                        let label = prompt(&format!("Label for {relative} (empty to skip): "))?;
                         if label.is_empty() {
                             (label, Embedding::default())
                         } else {
@@ -107,27 +104,8 @@ impl Index {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::error::Error;
-
-    // #[test]
-    // fn serialize() -> Result<(), Box<dyn Error>> {
-    //     let mut writer = csv::Writer::from_writer(vec![]);
-    //     writer.serialize(IndexRecord {
-    //         path: "LICENSE".into(),
-    //         hash: "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986".into(),
-    //         label: "My Label".into(),
-    //     })?;
-
-    //     let data = String::from_utf8(writer.into_inner()?)?;
-    //     assert_eq!(
-    //         data,
-    //         "path,hash,label\nLICENSE,3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986,My Label\n"
-    //     );
-
-    //     Ok(())
-    // }
 }

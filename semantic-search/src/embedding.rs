@@ -34,6 +34,7 @@ pub type EmbeddingBytes = [u8; 1024 * 4];
 /// Wrapped embedding representation.
 ///
 /// See [module-level documentation](crate::embedding) for more details.
+#[derive(Debug, Clone, PartialEq)]
 pub struct Embedding {
     inner: EmbeddingRaw,
     norm: f32,
