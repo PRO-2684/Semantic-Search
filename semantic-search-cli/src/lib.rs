@@ -9,8 +9,8 @@ pub mod commands;
 mod config;
 mod util;
 
-use argh::FromArgs;
 use anyhow::Result;
+use argh::FromArgs;
 use commands::Command;
 pub use config::{parse_config, Config};
 use log::{debug, info, warn};
@@ -56,7 +56,7 @@ pub async fn execute(command: Command, config: &Config) -> Result<()> {
                 let percent = similarity * 100.0;
                 println!("{percent:.2}%: {file_path}");
             }
-        },
+        }
         Command::Serve(serve) => serve.execute(config.port(), config.key()),
     };
 

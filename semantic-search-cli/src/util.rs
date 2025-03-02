@@ -5,10 +5,7 @@ use rusqlite::{Connection, OpenFlags, OptionalExtension, Result as SqlResult};
 use semantic_search::{embedding::EmbeddingBytes, Embedding};
 use sha2::{Digest, Sha256};
 use std::{
-    fs::File,
-    io::{self, Read, Result as IOResult, Write},
-    ops::Deref,
-    path::{Path, PathBuf},
+    fs::File, io::{self, Read, Result as IOResult, Write}, iter, ops::Deref, path::{Path, PathBuf}
 };
 
 pub const TABLE_NAME: &str = "files";
@@ -42,26 +39,34 @@ fn is_hidden(entry: &Path) -> bool {
         .starts_with('.')
 }
 
-/// Returns an iterator of all files in a directory, skipping hidden files.
-pub fn iter_files<'a, T1: AsRef<Path>, T2: AsRef<Path> + 'a>(
+/// Iterate over all files in a directory recursively, skipping hidden files.
+pub fn iter_files<'a, T1: AsRef<Path>>(
     dir: T1,
-    ref_path: T2,
-) -> IOResult<impl Iterator<Item = (PathBuf, String)>> {
-    // TODO: Recursive
-    let iter = std::fs::read_dir(dir)?
-        .filter_map(|entry| entry.ok())
-        .map(|entry| entry.path())
-        .filter(|path| path.is_file() && !is_hidden(path))
-        .map(move |path| {
-            let relative = path
-                .strip_prefix(ref_path.as_ref())
-                .unwrap()
-                .to_string_lossy()
-                .to_string();
-            (path, relative)
+    ref_path: &'a Path,
+) -> Box<dyn Iterator<Item = (PathBuf, String)> + 'a> {
+    let iter = std::fs::read_dir(dir).unwrap()
+        .filter_map(|entry| {
+            let path = entry.ok()?.path();
+            if is_hidden(&path) {
+                None
+            } else {
+                Some(path)
+            }
+        })
+        .flat_map(move |path| {
+            if path.is_dir() {
+                iter_files(&path, ref_path)
+            } else {
+                let relative = path
+                    .strip_prefix(ref_path)
+                    .unwrap()
+                    .to_string_lossy()
+                    .to_string();
+                Box::new(iter::once((path, relative)))
+            }
         });
 
-    Ok(iter)
+    Box::new(iter)
 }
 
 /// Prompt for user input.

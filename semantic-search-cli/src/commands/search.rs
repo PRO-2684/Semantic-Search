@@ -28,13 +28,12 @@ impl Search {
         let embedding: Embedding = api.embed(&self.query).await?.into();
 
         let mut stmt = db.prepare(&format!("SELECT file_path, embedding FROM {TABLE_NAME}"))?;
-        let rows = stmt
-            .query_map([], |row| {
-                let file_path: String = row.get(0)?;
-                let embedding: EmbeddingBytes = row.get(1)?;
-                let embedding: Embedding = embedding.into();
-                Ok((file_path, embedding))
-            })?;
+        let rows = stmt.query_map([], |row| {
+            let file_path: String = row.get(0)?;
+            let embedding: EmbeddingBytes = row.get(1)?;
+            let embedding: Embedding = embedding.into();
+            Ok((file_path, embedding))
+        })?;
 
         let mut results = Vec::with_capacity(self.num_results);
         for row in rows {

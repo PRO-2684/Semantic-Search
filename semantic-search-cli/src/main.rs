@@ -1,11 +1,11 @@
 #![warn(clippy::all, clippy::nursery, clippy::pedantic, clippy::cargo)]
 
+use anyhow::{Context, Result};
 use env_logger::Env;
 use log::debug;
 use semantic_search_cli::{execute, parse_config, Args};
 use std::io::Write;
 use std::path::Path;
-use anyhow::{Context, Result};
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {

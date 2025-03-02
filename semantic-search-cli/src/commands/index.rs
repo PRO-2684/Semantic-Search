@@ -4,8 +4,8 @@ use crate::{
     util::{hash_file, iter_files, prompt, Database, Record},
     Config,
 };
-use argh::FromArgs;
 use anyhow::{Context, Result};
+use argh::FromArgs;
 use log::{debug, warn};
 use semantic_search::{ApiClient, Model};
 
@@ -31,16 +31,13 @@ pub struct IndexSummary {
 
 impl Index {
     /// Index files.
-    pub async fn execute(
-        &self,
-        config: &Config,
-    ) -> Result<IndexSummary> {
-        let db = Database::open(".sense/index.db3", false)
-            .with_context(|| "Failed to open database")?;
+    pub async fn execute(&self, config: &Config) -> Result<IndexSummary> {
+        let db =
+            Database::open(".sense/index.db3", false).with_context(|| "Failed to open database")?;
         let mut summary = IndexSummary::default();
         let api = ApiClient::new(config.key().to_owned(), Model::BgeLargeZhV1_5)?;
         let cwd = std::env::current_dir()?.canonicalize()?;
-        let files = iter_files(&cwd, &cwd)?;
+        let files = iter_files(&cwd, &cwd);
         summary.deleted = db.clean(&cwd)?;
 
         // For all files, calculate hash and write to database
@@ -89,7 +86,8 @@ impl Index {
                         let label = path.file_stem().unwrap().to_string_lossy();
                         (label.to_string(), api.embed(&relative).await?.into())
                     } else {
-                        let label = prompt(&format!("Label for {relative} (empty to use filename): "))?;
+                        let label =
+                            prompt(&format!("Label for {relative} (empty to use filename): "))?;
                         if label.is_empty() {
                             // Use filename as label
                             let label = path.file_stem().unwrap().to_string_lossy();
