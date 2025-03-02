@@ -1,16 +1,17 @@
 //! Utility functions for the semantic search CLI.
 
 use log::info;
-use rusqlite::{Connection, OptionalExtension, Result as SqlResult};
+use rusqlite::{Connection, OpenFlags, OptionalExtension, Result as SqlResult};
 use semantic_search::{embedding::EmbeddingBytes, Embedding};
 use sha2::{Digest, Sha256};
 use std::{
     fs::File,
     io::{self, Read, Result as IOResult, Write},
+    ops::Deref,
     path::{Path, PathBuf},
 };
 
-const TABLE_NAME: &str = "files";
+pub const TABLE_NAME: &str = "files";
 
 /// Calculate SHA-256 hash of a file.
 pub fn hash_file<T: AsRef<Path>>(file: T) -> IOResult<String> {
@@ -93,12 +94,18 @@ pub struct Database {
 
 impl Database {
     /// Open a database connection, creating if not exists.
-    pub fn open<T: AsRef<Path>>(path: T) -> SqlResult<Self> {
+    pub fn open<T: AsRef<Path>>(path: T, read_only: bool) -> SqlResult<Self> {
         let path = path.as_ref();
         let exists = path.exists();
-        let conn = Connection::open(path)?;
+        let conn = if read_only {
+            Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY)?
+        } else {
+            Connection::open(path)?
+        };
 
         if !exists {
+            // Should error when initializing connection
+            assert!(!read_only, "Database does not exist");
             info!("Initializing database...");
             Self::init(&conn)?;
         }
@@ -176,7 +183,8 @@ impl Database {
                 label,
                 embedding,
             })
-        }).optional()
+        })
+        .optional()
     }
 
     /// Delete a record from the database.
@@ -192,7 +200,8 @@ impl Database {
     /// Filter out all satisfying records (path only).
     fn filter<T>(&self, predicate: T) -> Vec<String>
     where
-        T: FnMut(&String) -> bool,{
+        T: FnMut(&String) -> bool,
+    {
         self.conn
             .prepare(&format!("SELECT file_path FROM {TABLE_NAME}"))
             .unwrap()
@@ -217,6 +226,14 @@ impl Database {
         }
 
         Ok(count)
+    }
+}
+
+impl Deref for Database {
+    type Target = Connection;
+
+    fn deref(&self) -> &Self::Target {
+        &self.conn
     }
 }
 

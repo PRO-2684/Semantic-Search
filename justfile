@@ -1,6 +1,7 @@
 alias b := build
 # alias v := bump
 alias r := run
+alias s := search
 alias d := debug
 alias t := test
 
@@ -18,6 +19,11 @@ build:
 [doc("Compile and \u{001b}[4mr\u{001b}[24mun")]
 run *args:
     cd tests && cargo run -- {{args}}
+
+# Search
+[doc("\u{001b}[4mS\u{001b}[24mearch")]
+search term:
+    cd tests && cargo run -- search "{{term}}"
 
 # Compile and run (with debug logging)
 [doc("Compile and run (with \u{001b}[4md\u{001b}[24mebug logging)")]

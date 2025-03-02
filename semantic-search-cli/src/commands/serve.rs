@@ -4,7 +4,7 @@ use argh::FromArgs;
 
 /// start a server to search for files
 #[derive(FromArgs, PartialEq, Eq, Debug)]
-#[argh(subcommand, name = "serve")]
+#[argh(subcommand, name = "serve", help_triggers("-h", "--help"))]
 pub struct Serve {
     // ...
 }

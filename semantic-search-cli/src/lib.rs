@@ -36,13 +36,13 @@ pub async fn execute(command: Command, config: &Config) -> Result<()> {
     match command {
         Command::Index(index) => {
             info!("Indexing files...");
-            let summary = index.execute(&config).await?;
-            let attention_required = summary.changed + summary.unlabeled > 0;
+            let summary = index.execute(config).await?;
+            let attention_required = summary.changed + summary.new > 0;
             info!("Indexing complete!");
             if attention_required {
                 info!(
-                    "Attention: {} file(s) changed, {} file(s) unlabeled. ⭐",
-                    summary.changed, summary.unlabeled
+                    "Attention: {} file(s) changed, {} file(s) created. ⭐",
+                    summary.changed, summary.new
                 );
             } else if summary.deleted > 0 {
                 info!("{} file(s) deleted since last index. 🗑️", summary.deleted);
@@ -50,7 +50,13 @@ pub async fn execute(command: Command, config: &Config) -> Result<()> {
                 info!("No changes detected. ☕");
             }
         }
-        Command::Search(search) => search.execute(config.key()),
+        Command::Search(search) => {
+            let results = search.execute(config).await?;
+            for (file_path, similarity) in results {
+                let percent = similarity * 100.0;
+                println!("{percent:.2}%: {file_path}");
+            }
+        },
         Command::Serve(serve) => serve.execute(config.port(), config.key()),
     };
 

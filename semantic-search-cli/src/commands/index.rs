@@ -7,11 +7,11 @@ use crate::{
 use argh::FromArgs;
 use anyhow::{Context, Result};
 use log::{debug, warn};
-use semantic_search::{ApiClient, Embedding, Model};
+use semantic_search::{ApiClient, Model};
 
 /// generate index of the files
 #[derive(FromArgs, PartialEq, Eq, Debug)]
-#[argh(subcommand, name = "index")]
+#[argh(subcommand, name = "index", help_triggers("-h", "--help"))]
 pub struct Index {
     /// skip prompting for labels and use empty labels
     #[argh(switch, short = 'y')]
@@ -23,10 +23,10 @@ pub struct Index {
 pub struct IndexSummary {
     /// Number of changed files
     pub changed: usize,
+    /// Number of new files
+    pub new: usize,
     /// Number of deleted files
     pub deleted: usize,
-    /// Number of unlabeled files
-    pub unlabeled: usize,
 }
 
 impl Index {
@@ -35,7 +35,7 @@ impl Index {
         &self,
         config: &Config,
     ) -> Result<IndexSummary> {
-        let db = Database::open(".sense/index.db3")
+        let db = Database::open(".sense/index.db3", false)
             .with_context(|| "Failed to open database")?;
         let mut summary = IndexSummary::default();
         let api = ApiClient::new(config.key().to_owned(), Model::BgeLargeZhV1_5)?;
@@ -45,7 +45,7 @@ impl Index {
 
         // For all files, calculate hash and write to database
         for (path, relative) in files {
-            let hash = hash_file(path)?;
+            let hash = hash_file(&path)?;
             let relative = relative.to_string();
             let existing = db.get(&relative)?;
 
@@ -53,20 +53,12 @@ impl Index {
                 // If the file is already indexed
                 Some(mut record) => {
                     let hash_changed = record.file_hash != hash;
-                    let empty_label = record.label.is_empty();
                     // Warn if the hash has changed
-                    if hash_changed || empty_label {
-                        if hash_changed {
-                            summary.changed += 1;
-                            debug!("[CHANGED] {relative}: {} -> {hash}", record.file_hash);
-                            warn!("Hash of {relative} has changed, consider relabeling");
-                            record.file_hash = hash;
-                        }
-
-                        if empty_label {
-                            summary.unlabeled += 1;
-                            warn!("Label of {relative} is empty, consider labeling");
-                        }
+                    if hash_changed {
+                        summary.changed += 1;
+                        debug!("[CHANGED] {relative}: {} -> {hash}", record.file_hash);
+                        warn!("Hash of {relative} has changed, consider relabeling");
+                        record.file_hash = hash;
 
                         if !self.yes {
                             println!("Existing label: {}", record.label);
@@ -75,6 +67,7 @@ impl Index {
                             if !label.is_empty() {
                                 record.label = label;
                                 println!("Label updated to: {}", record.label);
+                                record.embedding = api.embed(&relative).await?.into();
                             } else {
                                 println!("Label kept as: {}", record.label);
                             }
@@ -87,17 +80,20 @@ impl Index {
                 }
                 // Generate a new record
                 None => {
+                    summary.new += 1;
                     debug!("[NEW] {hash}: {relative}");
                     warn!("New file: {relative}, consider labeling");
 
                     let (label, embedding) = if self.yes {
-                        summary.unlabeled += 1;
-                        ("".into(), Embedding::default())
+                        // Use filename as label
+                        let label = path.file_stem().unwrap().to_string_lossy();
+                        (label.to_string(), api.embed(&relative).await?.into())
                     } else {
-                        let label = prompt(&format!("Label for {relative} (empty to skip): "))?;
+                        let label = prompt(&format!("Label for {relative} (empty to use filename): "))?;
                         if label.is_empty() {
-                            summary.unlabeled += 1;
-                            (label, Embedding::default())
+                            // Use filename as label
+                            let label = path.file_stem().unwrap().to_string_lossy();
+                            (label.to_string(), api.embed(&relative).await?.into())
                         } else {
                             let embedding = api.embed(&relative).await?;
                             (label, embedding.into())
