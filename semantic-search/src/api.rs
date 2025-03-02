@@ -4,24 +4,28 @@
 
 use super::{embedding::EmbeddingBytes, SenseError};
 use base64::{engine::general_purpose::STANDARD as DECODER, Engine as _};
-use doc_for::{doc_impl, DocDyn};
 use reqwest::{Client, Url};
 use serde::{Deserialize, Serialize};
 
 // == API key validation and model definitions ==
 
 /// Available models.
-#[doc_impl(doc_for = false, doc_dyn = true, strip = 1)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Model {
     /// BAAI/bge-large-zh-v1.5
+    #[serde(rename = "BAAI/bge-large-zh-v1.5")]
     BgeLargeZhV1_5,
     /// BAAI/bge-large-en-v1.5
+    #[serde(rename = "BAAI/bge-large-en-v1.5")]
     BgeLargeEnV1_5,
     /// netease-youdao/bce-embedding-base_v1
+    #[serde(rename = "netease-youdao/bce-embedding-base_v1")]
     BceEmbeddingBaseV1,
     /// BAAI/bge-m3
+    #[serde(rename = "BAAI/bge-m3")]
     BgeM3,
     /// Pro/BAAI/bge-m3
+    #[serde(rename = "Pro/BAAI/bge-m3")]
     ProBgeM3,
 }
 
@@ -33,7 +37,7 @@ impl Default for Model {
 
 impl ToString for Model {
     fn to_string(&self) -> String {
-        self.doc_dyn().unwrap().to_string()
+        serde_json::to_string(self).unwrap().trim_matches('"').to_string()
     }
 }
 
@@ -120,7 +124,7 @@ impl ApiClient {
         validate_api_key(&key)?;
         Ok(Self {
             key,
-            model: model.doc_dyn().unwrap().to_string(),
+            model: model.to_string(),
             endpoint: Url::parse("https://api.siliconflow.cn/v1/embeddings").unwrap(),
             client: Client::new(),
         })

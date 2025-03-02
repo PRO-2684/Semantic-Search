@@ -23,10 +23,8 @@ async fn main() -> Result<()> {
 
     let config = parse_config(Path::new(".sense/config.toml"))
         .with_context(|| "Failed to parse config file, consider creating one")?;
-    debug!("Server port: {}", config.port());
-    debug!("API key: {}", config.key());
 
-    execute(args.command, &config).await?;
+    execute(args.command, config).await?;
 
     Ok(())
 }

@@ -31,11 +31,11 @@ pub struct IndexSummary {
 
 impl Index {
     /// Index files.
-    pub async fn execute(&self, config: &Config) -> Result<IndexSummary> {
+    pub async fn execute(&self, config: Config) -> Result<IndexSummary> {
         let db =
             Database::open(".sense/index.db3", false).with_context(|| "Failed to open database")?;
         let mut summary = IndexSummary::default();
-        let api = ApiClient::new(config.key().to_owned(), Model::BgeLargeZhV1_5)?;
+        let api = ApiClient::new(config.api.key, Model::BgeLargeZhV1_5)?;
         let cwd = std::env::current_dir()?.canonicalize()?;
         let files = iter_files(&cwd, &cwd);
         summary.deleted = db.clean(&cwd)?;

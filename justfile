@@ -20,10 +20,14 @@ build:
 run *args:
     cd tests && cargo run -- {{args}}
 
-# Search
-[doc("\u{001b}[4mS\u{001b}[24mearch")]
+# Compile and run search
+[doc("Compile and run \u{001b}[4mS\u{001b}[24mearch")]
 search term:
     cd tests && cargo run -- search "{{term}}"
+
+# Compile and run Telegram bot
+tg *args:
+    cd tests && cargo run -- tg {{args}}
 
 # Compile and run (with debug logging)
 [doc("Compile and run (with \u{001b}[4md\u{001b}[24mebug logging)")]

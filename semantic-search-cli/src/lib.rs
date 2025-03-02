@@ -29,7 +29,7 @@ pub struct Args {
 /// # Errors
 ///
 /// Returns an [IO error](std::io::Error) if reading or writing fails.
-pub async fn execute(command: Command, config: &Config) -> Result<()> {
+pub async fn execute(command: Command, config: Config) -> Result<()> {
     debug!("Executing command: {:?}", command);
     debug!("Config: {:?}", config);
 
@@ -57,7 +57,8 @@ pub async fn execute(command: Command, config: &Config) -> Result<()> {
                 println!("{percent:.2}%: {file_path}");
             }
         }
-        Command::Serve(serve) => serve.execute(config.port(), config.key()),
+        Command::Telegram(telegram) => telegram.execute(config).await?,
+        Command::Serve(serve) => serve.execute(config).await?,
     };
 
     Ok(())

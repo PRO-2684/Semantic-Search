@@ -21,10 +21,10 @@ pub struct Search {
 }
 
 impl Search {
-    pub async fn execute(&self, config: &Config) -> Result<Vec<(String, f32)>> {
+    pub async fn execute(&self, config: Config) -> Result<Vec<(String, f32)>> {
         let db = Database::open(".sense/index.db3", true)
             .with_context(|| "Failed to open database, did you index files?")?;
-        let api = ApiClient::new(config.key().to_owned(), Model::BgeLargeZhV1_5)?;
+        let api = ApiClient::new(config.api.key, Model::BgeLargeZhV1_5)?;
         let embedding: Embedding = api.embed(&self.query).await?.into();
 
         let mut stmt = db.prepare(&format!("SELECT file_path, embedding FROM {TABLE_NAME}"))?;

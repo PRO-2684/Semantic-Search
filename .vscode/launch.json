@@ -19,7 +19,7 @@
                     "kind": "bin"
                 }
             },
-            "args": ["index"],
+            "args": ["search", "Hello"],
             "cwd": "${workspaceFolder}/tests",
         },
     ]

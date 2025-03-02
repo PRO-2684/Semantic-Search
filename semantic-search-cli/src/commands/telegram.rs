@@ -1,4 +1,4 @@
-//! `serve` subcommand
+//! `tg` subcommand
 
 #![allow(unused_imports, unused_variables, reason = "Not implemented yet.")]
 
@@ -8,12 +8,12 @@ use anyhow::{Context, Result};
 
 /// start a server to search for files
 #[derive(FromArgs, PartialEq, Eq, Debug)]
-#[argh(subcommand, name = "serve", help_triggers("-h", "--help"))]
-pub struct Serve {
+#[argh(subcommand, name = "tg", help_triggers("-h", "--help"))]
+pub struct Telegram {
     // ...
 }
 
-impl Serve {
+impl Telegram {
     pub async fn execute(&self, config: Config) -> Result<()> {
         // ...
         Ok(())

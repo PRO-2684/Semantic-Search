@@ -26,6 +26,9 @@ port = 8080 # Default port for the server (Optional)
 key = "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" # API key for SiliconCloud (Required)
 model = "BAAI/bge-large-zh-v1.5" # Model to use for embedding (Optional)
 # Available models: BAAI/bge-large-zh-v1.5, BAAI/bge-large-en-v1.5, netease-youdao/bce-embedding-base_v1, BAAI/bge-m3, Pro/BAAI/bge-m3
+
+[bot]
+token = "1234567890:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" # Telegram bot token (Required for `sense bot`)
 ```
 
 ### Indexing
@@ -60,6 +63,14 @@ Also, you can specify the extension of the files you want to search for using th
 
 ```bash
 sense search "cute cat" --ext "jpg"
+```
+
+### Telegram Bot
+
+You can start a Telegram bot to search for files using a chat interface:
+
+```bash
+sense tg
 ```
 
 ### Server

@@ -16,14 +16,17 @@ pub enum SenseError {
     #[error("Malformed API key")]
     MalformedApiKey,
     /// Request failed.
-    #[error("Request failed: {0}. Make sure the API key is correct.")]
-    RequestFailed(ReqwestError),
+    #[error("Request failed. Make sure the API key is correct.")]
+    RequestFailed {
+        /// Source of the error.
+        source: ReqwestError,
+    },
 }
 
 impl From<ReqwestError> for SenseError {
     /// Error when request fails.
     fn from(error: ReqwestError) -> Self {
-        Self::RequestFailed(error)
+        Self::RequestFailed { source: error }
     }
 }
 

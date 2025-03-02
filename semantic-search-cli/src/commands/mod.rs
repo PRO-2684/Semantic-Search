@@ -3,6 +3,7 @@
 mod index;
 mod search;
 mod serve;
+mod telegram;
 
 use argh::FromArgs;
 pub use index::Index;
@@ -15,6 +16,8 @@ pub enum Command {
     Index(index::Index),
     /// A search command.
     Search(search::Search),
+    /// A Telegram bot command.
+    Telegram(telegram::Telegram),
     /// A serve command.
     Serve(serve::Serve),
 }
