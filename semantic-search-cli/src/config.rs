@@ -1,5 +1,6 @@
 //! Configuration file parser.
 
+use anyhow::Result as AnyResult;
 use std::path::Path;
 
 use semantic_search::Model;
@@ -98,7 +99,7 @@ fn parse_config_from_str(content: &str) -> Result<Config, toml::de::Error> {
 /// # Errors
 ///
 /// Returns an [IO error](std::io::Error) if reading fails, or a [TOML error](toml::de::Error) if parsing fails.
-pub fn parse_config(path: &Path) -> Result<Config, Box<dyn std::error::Error>> {
+pub fn parse_config(path: &Path) -> AnyResult<Config> {
     let content = std::fs::read_to_string(path)?;
     Ok(parse_config_from_str(&content)?)
 }

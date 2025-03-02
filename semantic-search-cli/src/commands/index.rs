@@ -5,6 +5,7 @@ use crate::{
     Config,
 };
 use argh::FromArgs;
+use anyhow::{Context, Result};
 use log::{debug, warn};
 use semantic_search::{ApiClient, Embedding, Model};
 
@@ -33,8 +34,9 @@ impl Index {
     pub async fn execute(
         &self,
         config: &Config,
-    ) -> Result<IndexSummary, Box<dyn std::error::Error>> {
-        let db = Database::open(".sense/index.db3")?;
+    ) -> Result<IndexSummary> {
+        let db = Database::open(".sense/index.db3")
+            .with_context(|| "Failed to open database")?;
         let mut summary = IndexSummary::default();
         let api = ApiClient::new(config.key().to_owned(), Model::BgeLargeZhV1_5)?;
         let cwd = std::env::current_dir()?.canonicalize()?;

@@ -81,8 +81,8 @@ $ curl -X POST http://localhost:8080/search -d '{"query": "cute cat", "limit": 5
 
 - [ ] Implement aforementioned features
     - [x] Indexing
-    - [ ] Labeling
-    - [ ] Embedding
+    - [x] Labeling
+    - [x] Embedding
     - [ ] Searching
     - [ ] Server
-- [ ] Incremental update
+- [x] Incremental update

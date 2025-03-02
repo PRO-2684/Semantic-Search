@@ -10,6 +10,7 @@ mod config;
 mod util;
 
 use argh::FromArgs;
+use anyhow::Result;
 use commands::Command;
 pub use config::{parse_config, Config};
 use log::{debug, info, warn};
@@ -28,7 +29,7 @@ pub struct Args {
 /// # Errors
 ///
 /// Returns an [IO error](std::io::Error) if reading or writing fails.
-pub async fn execute(command: Command, config: &Config) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn execute(command: Command, config: &Config) -> Result<()> {
     debug!("Executing command: {:?}", command);
     debug!("Config: {:?}", config);
 
