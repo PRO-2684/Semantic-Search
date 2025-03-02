@@ -3,8 +3,8 @@
 #![allow(unused_imports, unused_variables, reason = "Not implemented yet.")]
 
 use crate::Config;
-use argh::FromArgs;
 use anyhow::{Context, Result};
+use argh::FromArgs;
 
 /// start a server to search for files
 #[derive(FromArgs, PartialEq, Eq, Debug)]

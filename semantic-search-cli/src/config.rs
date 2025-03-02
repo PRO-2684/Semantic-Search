@@ -29,7 +29,9 @@ pub struct Server {
 
 impl Default for Server {
     fn default() -> Self {
-        Self { port: defaults::server_port() }
+        Self {
+            port: defaults::server_port(),
+        }
     }
 }
 
@@ -105,7 +107,13 @@ mod tests {
             [bot]
             token = "test_token"
         "#;
-        test(content, 8081, "test_key", Model::BgeLargeZhV1_5, "test_token");
+        test(
+            content,
+            8081,
+            "test_key",
+            Model::BgeLargeZhV1_5,
+            "test_token",
+        );
     }
 
     #[test]

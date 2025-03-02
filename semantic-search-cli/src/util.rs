@@ -1,11 +1,18 @@
 //! Utility functions for the semantic search CLI.
 
+use futures_core::stream::BoxStream;
+use futures_util::stream::StreamExt;
 use log::info;
-use rusqlite::{Connection, OpenFlags, OptionalExtension, Result as SqlResult};
 use semantic_search::{embedding::EmbeddingBytes, Embedding};
 use sha2::{Digest, Sha256};
+use sqlx::{
+    sqlite::SqliteConnectOptions, Connection, Executor, Result as SqlResult, Row, SqliteConnection,
+};
 use std::{
-    fs::File, io::{self, Read, Result as IOResult, Write}, iter, ops::Deref, path::{Path, PathBuf}
+    fs::File,
+    io::{self, Read, Result as IOResult, Write},
+    iter,
+    path::{Path, PathBuf},
 };
 
 pub const TABLE_NAME: &str = "files";
@@ -44,7 +51,8 @@ pub fn iter_files<'a, T1: AsRef<Path>>(
     dir: T1,
     ref_path: &'a Path,
 ) -> Box<dyn Iterator<Item = (PathBuf, String)> + 'a> {
-    let iter = std::fs::read_dir(dir).unwrap()
+    let iter = std::fs::read_dir(dir)
+        .unwrap()
         .filter_map(|entry| {
             let path = entry.ok()?.path();
             if is_hidden(&path) {
@@ -80,7 +88,7 @@ pub fn prompt(message: &str) -> IOResult<String> {
 }
 
 /// A record in the database.
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, sqlx::FromRow)]
 pub struct Record {
     /// Path to the file (relative to working directory)
     pub file_path: String,
@@ -89,30 +97,31 @@ pub struct Record {
     /// Label of the file
     pub label: String,
     /// Embedding of the file
+    #[sqlx(try_from = "Vec<u8>")]
     pub embedding: Embedding,
 }
 
 /// Simple database wrapper.
 pub struct Database {
-    conn: Connection,
+    conn: SqliteConnection,
 }
 
 impl Database {
     /// Open a database connection, creating if not exists.
-    pub fn open<T: AsRef<Path>>(path: T, read_only: bool) -> SqlResult<Self> {
+    pub async fn open<T: AsRef<Path>>(path: T, read_only: bool) -> SqlResult<Self> {
         let path = path.as_ref();
         let exists = path.exists();
-        let conn = if read_only {
-            Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY)?
-        } else {
-            Connection::open(path)?
-        };
+        let options = SqliteConnectOptions::new()
+            .filename(path)
+            .read_only(read_only)
+            .create_if_missing(!exists);
+        let mut conn = SqliteConnection::connect_with(&options).await?;
 
         if !exists {
             // Should error when initializing connection
             assert!(!read_only, "Database does not exist");
             info!("Initializing database...");
-            Self::init(&conn)?;
+            Self::init(&mut conn).await?;
         }
 
         Ok(Self { conn })
@@ -120,126 +129,131 @@ impl Database {
 
     /// Open a database connection in memory for testing.
     #[cfg(test)]
-    pub fn dummy() -> SqlResult<Self> {
-        let conn = Connection::open_in_memory()?;
-        Self::init(&conn)?;
+    pub async fn dummy() -> SqlResult<Self> {
+        let mut conn = SqliteConnection::connect("sqlite::memory:").await?;
+        Self::init(&mut conn).await?;
 
         Ok(Self { conn })
     }
 
     /// Initialize the database.
-    fn init(conn: &Connection) -> SqlResult<()> {
-        conn.execute(
-            &format!(
-                "CREATE TABLE {TABLE_NAME} (
-                file_path TEXT PRIMARY KEY,
-                file_hash TEXT NOT NULL,
-                label TEXT NOT NULL,
-                embedding BLOB NOT NULL
-                )"
-            ),
-            [],
-        )?;
+    async fn init(conn: &mut SqliteConnection) -> SqlResult<()> {
+        let query = format!(
+            "CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
+            file_path TEXT PRIMARY KEY,
+            file_hash TEXT NOT NULL,
+            label TEXT NOT NULL,
+            embedding BLOB NOT NULL
+            )"
+        );
+        conn.execute(query.as_str()).await?;
 
         Ok(())
     }
 
     /// Insert a record into the database, replacing if exists.
-    pub fn insert(&self, record: Record) -> SqlResult<()> {
-        self.conn.execute(
-            &format!(
-                "INSERT OR REPLACE INTO {TABLE_NAME} (file_path, file_hash, label, embedding) VALUES (?, ?, ?, ZEROBLOB(4096))"
-            ),
-            [
-                &record.file_path,
-                &record.file_hash,
-                &record.label,
-            ],
-        )?;
-        let row_id = self.conn.last_insert_rowid();
-        let mut blob = self.conn.blob_open(
-            rusqlite::DatabaseName::Main,
-            TABLE_NAME,
-            "embedding",
-            row_id,
-            false,
-        )?;
+    pub async fn insert(&mut self, record: Record) -> SqlResult<bool> {
         let bytes: EmbeddingBytes = record.embedding.into();
-        blob.write_at(&bytes, 0)?;
+        let query = format!(
+            "INSERT OR REPLACE INTO {TABLE_NAME} (file_path, file_hash, label, embedding) VALUES (?, ?, ?, ?)"
+        );
+        let query = sqlx::query(query.as_str());
+        let result = query
+            .bind(&record.file_path)
+            .bind(&record.file_hash)
+            .bind(&record.label)
+            .bind(&&bytes[..])
+            .execute(&mut self.conn)
+            .await?;
 
-        Ok(())
+        Ok(result.rows_affected() == 1)
     }
 
     /// Get a record from the database.
-    pub fn get(&self, file_path: &str) -> SqlResult<Option<Record>> {
-        let mut stmt = self.conn.prepare(&format!(
-            "SELECT file_hash, label, embedding FROM {TABLE_NAME} WHERE file_path = ?"
-        ))?;
+    pub async fn get(&mut self, file_path: &str) -> SqlResult<Option<Record>> {
+        let query = format!(
+            "SELECT file_path, file_hash, label, embedding FROM {TABLE_NAME} WHERE file_path = ?"
+        );
+        let query = sqlx::query_as::<_, Record>(query.as_str());
+        let result = query
+            .bind(&file_path)
+            .fetch_optional(&mut self.conn)
+            .await?;
 
-        stmt.query_row([&file_path], |row| {
-            let file_hash: String = row.get(0)?;
-            let label: String = row.get(1)?;
-            let bytes: EmbeddingBytes = row.get(2)?;
-            let embedding: Embedding = bytes.into();
-
-            Ok(Record {
-                file_path: file_path.to_owned(),
-                file_hash,
-                label,
-                embedding,
-            })
-        })
-        .optional()
+        Ok(result)
     }
 
     /// Delete a record from the database.
-    fn delete(&self, file_path: &str) -> SqlResult<()> {
-        self.conn.execute(
-            &format!("DELETE FROM {TABLE_NAME} WHERE file_path = ?"),
-            [&file_path],
-        )?;
+    async fn delete(&mut self, file_path: &str) -> SqlResult<bool> {
+        let query = format!("DELETE FROM {TABLE_NAME} WHERE file_path = ?");
+        let query = sqlx::query(query.as_str());
+        let result = query.bind(&file_path).execute(&mut self.conn).await?;
 
-        Ok(())
+        Ok(result.rows_affected() == 1)
     }
 
-    /// Filter out all satisfying records (path only).
-    fn filter<T>(&self, predicate: T) -> Vec<String>
-    where
-        T: FnMut(&String) -> bool,
-    {
-        self.conn
-            .prepare(&format!("SELECT file_path FROM {TABLE_NAME}"))
-            .unwrap()
-            .query_map([], |row| row.get(0))
-            .unwrap()
-            .map(|result| result.unwrap())
-            .filter(predicate)
-            .collect()
+    /// Iterate over all records in the database. (path only)
+    pub fn iter(&mut self) -> BoxStream<'_, SqlResult<String>> {
+        let query = sqlx::query(queries::QUERY_PATH);
+        let result = query
+            .fetch(&mut self.conn)
+            .map(|row| {
+                let row = row?;
+                Ok(row.get(0))
+            })
+            .boxed();
+        result
+    }
+
+    /// Iterate over all records in the database, together with embeddings.
+    pub fn iter_embeddings(&mut self) -> BoxStream<'_, SqlResult<(String, Embedding)>> {
+        let query = sqlx::query(queries::QUERY_EMBEDDING);
+        let result = query
+            .fetch(&mut self.conn)
+            .map(|row| {
+                let row = row?;
+                let file_path: String = row.get(0);
+                let embedding: &[u8] = row.get(1);
+                let embedding: Embedding = embedding.try_into().expect("Invalid embedding size");
+                Ok((file_path, embedding))
+            })
+            .boxed();
+        result
     }
 
     /// Clean up the database, removing records that no longer exist on disk.
-    pub fn clean<T>(&self, ref_path: T) -> SqlResult<usize>
+    pub async fn clean<T>(&mut self, ref_path: T) -> SqlResult<usize>
     where
         T: AsRef<Path>,
     {
         let ref_path = ref_path.as_ref();
-        let to_delete = self.filter(|path| !ref_path.join(path).exists());
+        let records = self.iter();
+        let to_delete = records
+            .filter_map(|path| async {
+                let path = path.ok()?;
+                let full_path = ref_path.join(&path);
+                if !full_path.exists() {
+                    Some(path)
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>()
+            .await;
         let count = to_delete.len();
 
         for path in to_delete {
-            self.delete(&path)?;
+            self.delete(&path).await?;
         }
 
         Ok(count)
     }
 }
 
-impl Deref for Database {
-    type Target = Connection;
-
-    fn deref(&self) -> &Self::Target {
-        &self.conn
-    }
+/// Used query instructions.
+mod queries {
+    pub const QUERY_PATH: &str = "SELECT file_path FROM files";
+    pub const QUERY_EMBEDDING: &str = "SELECT file_path, embedding FROM files";
 }
 
 #[cfg(test)]
@@ -259,7 +273,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_db() {
-        let db = Database::dummy().unwrap();
+        let mut db = Database::dummy().await.unwrap();
         let mut record = Record {
             file_path: "test_file_path".to_owned(),
             file_hash: "test_file_hash".to_owned(),
@@ -274,27 +288,27 @@ mod tests {
         };
 
         // Insert record
-        db.insert(record.clone()).unwrap();
-        db.insert(record2.clone()).unwrap();
-        let result = db.get(&record.file_path).unwrap().unwrap();
+        db.insert(record.clone()).await.unwrap();
+        db.insert(record2.clone()).await.unwrap();
+        let result = db.get(&record.file_path).await.unwrap().unwrap();
         assert_eq!(result, record);
-        let result = db.get(&record2.file_path).unwrap().unwrap();
+        let result = db.get(&record2.file_path).await.unwrap().unwrap();
         assert_eq!(result, record2);
 
         // Update record
         record.label = "new_label".to_owned();
         record.embedding = Embedding::from([1.2; 1024]);
-        db.insert(record.clone()).unwrap();
-        let result = db.get(&record.file_path).unwrap().unwrap();
+        db.insert(record.clone()).await.unwrap();
+        let result = db.get(&record.file_path).await.unwrap().unwrap();
         assert_eq!(result, record);
-        let result = db.get(&record2.file_path).unwrap().unwrap();
+        let result = db.get(&record2.file_path).await.unwrap().unwrap();
         assert_eq!(result, record2);
 
         // Delete record
-        db.delete(&record.file_path).unwrap();
-        let result = db.get(&record.file_path).unwrap();
+        db.delete(&record.file_path).await.unwrap();
+        let result = db.get(&record.file_path).await.unwrap();
         assert_eq!(result, None);
-        let result = db.get(&record2.file_path).unwrap().unwrap();
+        let result = db.get(&record2.file_path).await.unwrap().unwrap();
         assert_eq!(result, record2);
     }
 }
