@@ -41,8 +41,8 @@ pub async fn execute(command: Command, config: Config) -> Result<()> {
             info!("Indexing complete!");
             if attention_required {
                 info!(
-                    "Attention: {} file(s) changed, {} file(s) created. ⭐",
-                    summary.changed, summary.new
+                    "Summary: {} file(s) changed, {} file(s) created, {} file(s) deleted. 📝",
+                    summary.changed, summary.new, summary.deleted
                 );
             } else if summary.deleted > 0 {
                 info!("{} file(s) deleted since last index. 🗑️", summary.deleted);

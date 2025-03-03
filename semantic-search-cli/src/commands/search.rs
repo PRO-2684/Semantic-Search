@@ -25,10 +25,10 @@ impl Search {
             .with_context(|| "Failed to open database, did you index files?")?;
         let api = ApiClient::new(config.api.key, Model::BgeLargeZhV1_5)?;
         let embedding: Embedding = api.embed(&self.query).await?.into();
-        let mut rows = db.iter_embeddings();
 
+        let mut rows = db.iter_embeddings();
         let mut results = Vec::with_capacity(self.num_results);
-        // for row in rows {
+
         while let Some(row) = rows.next().await {
             let (file_path, other_embedding) = row?;
             let similarity = embedding.cosine_similarity(&other_embedding);

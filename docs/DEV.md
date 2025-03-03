@@ -23,7 +23,7 @@ SILICONFLOW_API_KEY=sk-1234567890abcdef1234567890abcdef1234567890abcdef cargo te
 ## `.sense` directory structure
 
 - `config.toml`: Configuration file for the CLI.
-- `index.db3`: SQLite database containing the index of files and generated embeddings. The schema is as follows:
+- `index.db3`: A standard SQLite3 database containing file paths, hashes, labels, and embeddings. The schema is as follows:
 
 ```sql
 CREATE TABLE files (
@@ -33,3 +33,7 @@ CREATE TABLE files (
     embedding BLOB NOT NULL      -- 4KB binary data (embedding)
 );
 ```
+
+## Using external tools for labeling
+
+You can use external tools to view or modify the database. For quick and easy access, you can use online viewers like [SQLite Viewer](https://inloop.github.io/sqlite-viewer/) or [SQLite Viewer Web App](https://sqliteviewer.app/); For quick editing, try [SQL online IDE](https://sqliteonline.com/). After modifying the labels, `sense` won't know about the changes, so you can change the hash of the file to trigger a re-indexing when running `sense index`.

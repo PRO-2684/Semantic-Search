@@ -13,9 +13,12 @@ use semantic_search::{ApiClient, Model};
 #[derive(FromArgs, PartialEq, Eq, Debug)]
 #[argh(subcommand, name = "index", help_triggers("-h", "--help"))]
 pub struct Index {
-    /// skip prompting for labels and use empty labels
+    /// skip prompting for labels and use filename or existing label
     #[argh(switch, short = 'y')]
     pub yes: bool,
+    /// re-embedding files that hash has changed, useful when you edited the labels externally and conveyed the changes by changing the hash
+    #[argh(switch, short = 'r')]
+    pub re_embed: bool,
 }
 
 /// Summary of the index operation.
@@ -32,6 +35,10 @@ pub struct IndexSummary {
 impl Index {
     /// Index files.
     pub async fn execute(&self, config: Config) -> Result<IndexSummary> {
+        // The option `yes` and `re_embed` should not be used together
+        if self.yes && self.re_embed {
+            anyhow::bail!("Options -y and -r should not be used together");
+        }
         let mut db = Database::open(".sense/index.db3", false)
             .await
             .with_context(|| "Failed to open database")?;
@@ -58,9 +65,13 @@ impl Index {
                         warn!("Hash of {relative} has changed, consider relabeling");
                         record.file_hash = hash;
 
-                        if !self.yes {
-                            println!("Existing label: {}", record.label);
+                        if self.re_embed {
+                            // Re-embed existing label
+                            println!("Re-embedding {relative}");
+                            record.embedding = api.embed(&record.label).await?.into();
+                        } else if !self.yes {
                             // Prompt for label
+                            println!("Existing label: {}", record.label);
                             let label = prompt(&format!("Label for {relative} (empty to keep): "))?;
                             if !label.is_empty() {
                                 record.label = label;
@@ -69,8 +80,12 @@ impl Index {
                             } else {
                                 println!("Label kept as: {}", record.label);
                             }
+                        } else {
+                            // Do nothing if `yes` is set - keep the existing label and embedding
+                            println!("Skipping {relative}");
                         }
                     } else {
+                        // Nothing changed
                         debug!("[SAME] {relative}: {hash}");
                     }
                     // Reuse the record
