@@ -22,7 +22,7 @@ impl Search {
     pub async fn execute(&self, config: Config) -> Result<Vec<(String, f32)>> {
         let mut db = Database::open(".sense/index.db3", true)
             .await
-            .with_context(|| "Failed to open database, did you index files?")?;
+            .with_context(|| "Failed to open database, consider indexing first.")?;
         let api = ApiClient::new(config.api.key, Model::BgeLargeZhV1_5)?;
         let embedding: Embedding = api.embed(&self.query).await?.into();
 

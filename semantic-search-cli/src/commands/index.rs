@@ -6,7 +6,7 @@ use crate::{
 };
 use anyhow::{Context, Result};
 use argh::FromArgs;
-use log::{debug, warn};
+use log::{debug, info, warn};
 use semantic_search::{ApiClient, Model};
 
 /// generate index of the files
@@ -67,7 +67,7 @@ impl Index {
 
                         if self.re_embed {
                             // Re-embed existing label
-                            println!("Re-embedding {relative}");
+                            info!("Re-embedding {relative}");
                             record.embedding = api.embed(&record.label).await?.into();
                         } else if !self.yes {
                             // Prompt for label
@@ -82,7 +82,7 @@ impl Index {
                             }
                         } else {
                             // Do nothing if `yes` is set - keep the existing label and embedding
-                            println!("Skipping {relative}");
+                            info!("Skipping {relative}");
                         }
                     } else {
                         // Nothing changed

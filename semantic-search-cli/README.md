@@ -53,16 +53,16 @@ To search for files based on labels, execute the following command:
 sense search "cute cat"
 ```
 
-You can specify how many results you want to display using the `--limit` flag:
+You can specify how many results you want to display using the `--num-results` flag, or `-n` for short:
 
 ```bash
-sense search "cute cat" --limit 5 # Default
+sense search "cute cat" -n 5 # Default
 ```
 
-Also, you can specify the extension of the files you want to search for using the `--ext` flag:
+(TBD) Also, you can specify the regular expression for the path of the files using the `--path` flag, or `-p` for short:
 
 ```bash
-sense search "cute cat" --ext "jpg"
+sense search "cute cat" -p "path/.*\.jpg"
 ```
 
 ### Telegram Bot

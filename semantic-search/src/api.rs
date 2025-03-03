@@ -37,7 +37,10 @@ impl Default for Model {
 
 impl ToString for Model {
     fn to_string(&self) -> String {
-        serde_json::to_string(self).unwrap().trim_matches('"').to_string()
+        serde_json::to_string(self)
+            .unwrap()
+            .trim_matches('"')
+            .to_string()
     }
 }
 
