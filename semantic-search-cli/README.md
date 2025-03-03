@@ -29,6 +29,7 @@ model = "BAAI/bge-large-zh-v1.5" # Model to use for embedding (Optional)
 
 [bot]
 token = "1234567890:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" # Telegram bot token (Required for `sense bot`)
+whitelist = [1234567890] # Whitelisted chat IDs - Only these users can use the bot (Optional, all users can use the bot if not set or set to an empty array)
 ```
 
 ### Indexing

@@ -51,6 +51,9 @@ pub struct BotConfig {
     /// Token for the Telegram bot.
     #[serde(default)]
     pub token: String,
+    /// White list of user IDs that can use the bot.
+    #[serde(default)]
+    pub whitelist: Vec<u64>,
 }
 
 /// Parse the configuration into a `Config` structure.
