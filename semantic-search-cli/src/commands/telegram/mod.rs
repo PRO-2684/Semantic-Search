@@ -7,8 +7,9 @@ use anyhow::{Context, Result};
 use argh::FromArgs;
 use log::debug;
 use teloxide::{
-    adaptors::throttle::Limits,
-    dispatching::{MessageFilterExt, UpdateFilterExt},
+    adaptors::throttle::{Limits, Throttle},
+    dispatching::{HandlerExt, MessageFilterExt, UpdateFilterExt},
+    dptree,
     prelude::{Dispatcher, Requester, ResponseResult},
     repls::CommandReplExt,
     requests::RequesterExt,
@@ -16,6 +17,8 @@ use teloxide::{
     utils::command::BotCommands,
     Bot,
 };
+
+type ThrottledBot = Throttle<Bot>;
 
 /// start a server to search for files
 #[derive(FromArgs, PartialEq, Eq, Debug)]
@@ -42,9 +45,13 @@ impl Telegram {
                     false
                 }
             })
-            .branch(Message::filter_text().endpoint(answer));
+            .branch(dptree::entry().filter_command::<Command>().endpoint(answer));
 
-        Dispatcher::builder(bot, schema).enable_ctrlc_handler().build().dispatch().await;
+        Dispatcher::builder(bot, schema)
+            .enable_ctrlc_handler()
+            .build()
+            .dispatch()
+            .await;
 
         Ok(())
     }
@@ -64,7 +71,7 @@ enum Command {
     UsernameAndAge { username: String, age: u8 },
 }
 
-async fn answer(bot: Bot, msg: Message, cmd: Command) -> ResponseResult<()> {
+async fn answer(bot: ThrottledBot, msg: Message, cmd: Command) -> ResponseResult<()> {
     match cmd {
         Command::Help => {
             bot.send_message(msg.chat.id, Command::descriptions().to_string())
