@@ -2,20 +2,16 @@
 
 #![allow(unused_imports, unused_variables, reason = "Not implemented yet.")]
 
+mod common;
+mod inline;
+mod message;
+
 use crate::{config::BotConfig, Config};
 use anyhow::{Context, Result};
 use argh::FromArgs;
 use log::debug;
 use teloxide::{
-    adaptors::throttle::{Limits, Throttle},
-    dispatching::{HandlerExt, MessageFilterExt, UpdateFilterExt},
-    dptree,
-    prelude::{Dispatcher, Requester, ResponseResult},
-    repls::CommandReplExt,
-    requests::RequesterExt,
-    types::{Me, Message, Update},
-    utils::command::BotCommands,
-    Bot,
+    adaptors::throttle::{Limits, Throttle}, dispatching::{UpdateFilterExt, UpdateHandler}, dptree, prelude::Dispatcher, requests::RequesterExt, types::Update, Bot
 };
 
 type ThrottledBot = Throttle<Bot>;
@@ -33,21 +29,20 @@ impl Telegram {
         if token.is_empty() {
             anyhow::bail!("No token provided for the Telegram bot.");
         }
-
         let bot = Bot::new(token).throttle(Limits::default());
 
-        let schema = Update::filter_message()
+        let handler = dptree::entry()
             .filter(move |update: Update| {
                 if let Some(user) = update.from() {
-                    debug!("User: {:?}", user);
                     whitelist.is_empty() || whitelist.contains(&user.id.0)
                 } else {
                     false
                 }
             })
-            .branch(dptree::entry().filter_command::<Command>().endpoint(answer));
+            .branch(Update::filter_message().endpoint(message::message_handler))
+            .branch(Update::filter_inline_query().endpoint(inline::inline_handler));
 
-        Dispatcher::builder(bot, schema)
+        Dispatcher::builder(bot, handler)
             .enable_ctrlc_handler()
             .build()
             .dispatch()
@@ -55,40 +50,4 @@ impl Telegram {
 
         Ok(())
     }
-}
-
-#[derive(BotCommands, Clone)]
-#[command(
-    rename_rule = "lowercase",
-    description = "These commands are supported:"
-)]
-enum Command {
-    #[command(description = "display this text.")]
-    Help,
-    #[command(description = "handle a username.")]
-    Username(String),
-    #[command(description = "handle a username and an age.", parse_with = "split")]
-    UsernameAndAge { username: String, age: u8 },
-}
-
-async fn answer(bot: ThrottledBot, msg: Message, cmd: Command) -> ResponseResult<()> {
-    match cmd {
-        Command::Help => {
-            bot.send_message(msg.chat.id, Command::descriptions().to_string())
-                .await?
-        }
-        Command::Username(username) => {
-            bot.send_message(msg.chat.id, format!("Your username is @{username}."))
-                .await?
-        }
-        Command::UsernameAndAge { username, age } => {
-            bot.send_message(
-                msg.chat.id,
-                format!("Your username is @{username} and age is {age}."),
-            )
-            .await?
-        }
-    };
-
-    Ok(())
 }
