@@ -110,6 +110,7 @@ struct ResponseBody {
 // == API client ==
 
 /// A client for the SiliconFlow API.
+#[derive(Clone)]
 pub struct ApiClient {
     /// API key.
     key: String,

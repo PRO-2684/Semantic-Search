@@ -22,7 +22,7 @@ serde = { version = "1.0.218", features = ["derive"] }
 sha2 = "0.10.8"
 sqlx = { version = "0.8.3", features = ["runtime-tokio", "sqlite"] }
 teloxide = { version = "0.13.0", features = ["macros", "throttle"] }
-tokio = { version = "1.43.0", features = ["rt", "macros"] }
+tokio = { version = "1.43.0", features = ["rt", "macros", "rt-multi-thread"] }
 toml = "0.8.20"
 
 [[bin]]

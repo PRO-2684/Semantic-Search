@@ -6,13 +6,22 @@ mod common;
 mod inline;
 mod message;
 
-use crate::{config::BotConfig, Config};
+use crate::{config::BotConfig, util::Database, Config};
 use anyhow::{Context, Result};
 use argh::FromArgs;
 use log::debug;
+use semantic_search::ApiClient;
+use std::sync::Arc;
 use teloxide::{
-    adaptors::throttle::{Limits, Throttle}, dispatching::{UpdateFilterExt, UpdateHandler}, dptree, prelude::Dispatcher, requests::RequesterExt, types::Update, Bot
+    adaptors::throttle::{Limits, Throttle},
+    dispatching::{UpdateFilterExt, UpdateHandler},
+    dptree,
+    prelude::Dispatcher,
+    requests::RequesterExt,
+    types::{Me, Message, Update},
+    Bot,
 };
+use tokio::sync::Mutex;
 
 type ThrottledBot = Throttle<Bot>;
 
@@ -25,7 +34,17 @@ pub struct Telegram {
 
 impl Telegram {
     pub async fn execute(&self, config: Config) -> Result<()> {
-        let BotConfig { token, whitelist } = config.bot;
+        let db = Database::open(".sense/index.db3", true)
+            .await
+            .with_context(|| "Failed to open database, consider indexing first.")?;
+        let db = Arc::new(Mutex::new(db));
+        let api = ApiClient::new(config.api.key, config.api.model)?;
+
+        let BotConfig {
+            token,
+            whitelist,
+            num_results,
+        } = config.bot;
         if token.is_empty() {
             anyhow::bail!("No token provided for the Telegram bot.");
         }
@@ -39,10 +58,19 @@ impl Telegram {
                     false
                 }
             })
-            .branch(Update::filter_message().endpoint(message::message_handler))
+            .branch(Update::filter_message().endpoint(
+                |bot: ThrottledBot,
+                 msg: Message,
+                 me: Me,
+                 db: Arc<Mutex<Database>>,
+                 api: ApiClient| async move {
+                    message::message_handler(bot, msg, me, db, api).await
+                },
+            ))
             .branch(Update::filter_inline_query().endpoint(inline::inline_handler));
 
         Dispatcher::builder(bot, handler)
+            .dependencies(dptree::deps![db, api, num_results])
             .enable_ctrlc_handler()
             .build()
             .dispatch()

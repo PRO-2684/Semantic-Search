@@ -3,8 +3,7 @@
 use crate::{util::Database, Config};
 use anyhow::{Context, Result};
 use argh::FromArgs;
-use futures_util::StreamExt;
-use semantic_search::{ApiClient, Embedding, Model};
+use semantic_search::{ApiClient, Embedding};
 
 /// search for files based on labels
 #[derive(FromArgs, PartialEq, Eq, Debug)]
@@ -23,24 +22,9 @@ impl Search {
         let mut db = Database::open(".sense/index.db3", true)
             .await
             .with_context(|| "Failed to open database, consider indexing first.")?;
-        let api = ApiClient::new(config.api.key, Model::BgeLargeZhV1_5)?;
+        let api = ApiClient::new(config.api.key, config.api.model)?;
         let embedding: Embedding = api.embed(&self.query).await?.into();
-
-        let mut rows = db.iter_embeddings();
-        let mut results = Vec::with_capacity(self.num_results);
-
-        while let Some(row) = rows.next().await {
-            let (file_path, other_embedding) = row?;
-            let similarity = embedding.cosine_similarity(&other_embedding);
-            // Top N results
-            if results.len() < self.num_results {
-                results.push((file_path, similarity));
-            } else if results.last().unwrap().1 < similarity {
-                results.pop();
-                results.push((file_path, similarity));
-            }
-            results.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
-        }
+        let results = db.search(self.num_results, &embedding).await?;
 
         Ok(results)
     }

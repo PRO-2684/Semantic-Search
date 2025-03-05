@@ -94,6 +94,8 @@ pub struct Record {
     pub file_path: String,
     /// SHA-256 hash of the file
     pub file_hash: String,
+    /// File id used in Telegram
+    pub file_id: Option<String>,
     /// Label of the file
     pub label: String,
     /// Embedding of the file
@@ -142,6 +144,7 @@ impl Database {
             "CREATE TABLE IF NOT EXISTS {TABLE_NAME} (
             file_path TEXT PRIMARY KEY,
             file_hash TEXT NOT NULL,
+            file_id TEXT,
             label TEXT NOT NULL,
             embedding BLOB NOT NULL
             )"
@@ -172,7 +175,7 @@ impl Database {
     /// Get a record from the database.
     pub async fn get(&mut self, file_path: &str) -> SqlResult<Option<Record>> {
         let query = format!(
-            "SELECT file_path, file_hash, label, embedding FROM {TABLE_NAME} WHERE file_path = ?"
+            "SELECT file_path, file_hash, file_id, label, embedding FROM {TABLE_NAME} WHERE file_path = ?"
         );
         let query = sqlx::query_as::<_, Record>(query.as_str());
         let result = query
@@ -181,6 +184,31 @@ impl Database {
             .await?;
 
         Ok(result)
+    }
+
+    /// Search for the top-N matches, returning the file path and similarity.
+    pub async fn search(
+        &mut self,
+        n: usize,
+        embedding: &Embedding,
+    ) -> SqlResult<Vec<(String, f32)>> {
+        let mut rows = self.iter_embeddings();
+        let mut results = Vec::with_capacity(n);
+
+        while let Some(row) = rows.next().await {
+            let (file_path, other_embedding) = row?;
+            let similarity = embedding.cosine_similarity(&other_embedding);
+            // Top N results
+            if results.len() < n {
+                results.push((file_path, similarity));
+            } else if results.last().unwrap().1 < similarity {
+                results.pop();
+                results.push((file_path, similarity));
+            }
+            results.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+        }
+
+        Ok(results)
     }
 
     /// Delete a record from the database.
@@ -277,12 +305,14 @@ mod tests {
         let mut record = Record {
             file_path: "test_file_path".to_owned(),
             file_hash: "test_file_hash".to_owned(),
+            file_id: None,
             label: "test_label".to_owned(),
             embedding: Embedding::default(),
         };
         let record2 = Record {
             file_path: "test_file_path2".to_owned(),
             file_hash: "test_file_hash2".to_owned(),
+            file_id: None,
             label: "test_label2".to_owned(),
             embedding: Embedding::from([2.3; 1024]),
         };

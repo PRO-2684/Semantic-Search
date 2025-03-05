@@ -7,7 +7,7 @@ use crate::{
 use anyhow::{Context, Result};
 use argh::FromArgs;
 use log::{debug, info, warn};
-use semantic_search::{ApiClient, Model};
+use semantic_search::ApiClient;
 
 /// generate index of the files
 #[derive(FromArgs, PartialEq, Eq, Debug)]
@@ -43,7 +43,7 @@ impl Index {
             .await
             .with_context(|| "Failed to open database")?;
         let mut summary = IndexSummary::default();
-        let api = ApiClient::new(config.api.key, Model::BgeLargeZhV1_5)?;
+        let api = ApiClient::new(config.api.key, config.api.model)?;
         let cwd = std::env::current_dir()?.canonicalize()?;
         let files = iter_files(&cwd, &cwd);
         summary.deleted = db.clean(&cwd).await?;
@@ -64,6 +64,7 @@ impl Index {
                         debug!("[CHANGED] {relative}: {} -> {hash}", record.file_hash);
                         warn!("Hash of {relative} has changed, consider relabeling");
                         record.file_hash = hash;
+                        record.file_id = None; // Reset file_id
 
                         if self.re_embed {
                             // Re-embed existing label
@@ -116,6 +117,7 @@ impl Index {
                     Record {
                         file_path: relative,
                         file_hash: hash,
+                        file_id: None,
                         label,
                         embedding,
                     }

@@ -46,7 +46,7 @@ pub struct ApiConfig {
 }
 
 /// Telegram bot configuration.
-#[derive(Deserialize, Debug, Default)]
+#[derive(Deserialize, Debug)]
 pub struct BotConfig {
     /// Token for the Telegram bot.
     #[serde(default)]
@@ -54,6 +54,19 @@ pub struct BotConfig {
     /// White list of user IDs that can use the bot.
     #[serde(default)]
     pub whitelist: Vec<u64>,
+    /// Number of results to return.
+    #[serde(default = "defaults::num_results")]
+    pub num_results: usize,
+}
+
+impl Default for BotConfig {
+    fn default() -> Self {
+        Self {
+            token: String::new(),
+            whitelist: Vec::new(),
+            num_results: defaults::num_results(),
+        }
+    }
 }
 
 /// Parse the configuration into a `Config` structure.
@@ -83,6 +96,10 @@ mod defaults {
     /// Default port for the server.
     pub fn server_port() -> u16 {
         8080
+    }
+    /// Number of results to return.
+    pub fn num_results() -> usize {
+        5
     }
 }
 

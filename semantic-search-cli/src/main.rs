@@ -7,7 +7,7 @@ use semantic_search_cli::{execute, parse_config, Args};
 use std::io::Write;
 use std::path::Path;
 
-#[tokio::main(flavor = "current_thread")]
+#[tokio::main]
 async fn main() -> Result<()> {
     env_logger::Builder::from_env(Env::default().default_filter_or("info"))
         .format(|buf, record| {

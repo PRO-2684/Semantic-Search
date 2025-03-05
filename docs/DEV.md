@@ -23,12 +23,13 @@ SILICONFLOW_API_KEY=sk-1234567890abcdef1234567890abcdef1234567890abcdef cargo te
 ## `.sense` directory structure
 
 - `config.toml`: Configuration file for the CLI.
-- `index.db3`: A standard SQLite3 database containing file paths, hashes, labels, and embeddings. The schema is as follows:
+- `index.db3`: A standard SQLite3 database containing file paths, hashes, ids, labels, and embeddings. The schema is as follows:
 
 ```sql
 CREATE TABLE files (
     file_path TEXT PRIMARY KEY,  -- Unique file identifier
     file_hash TEXT NOT NULL,     -- Hash of the file contents
+    file_id TEXT,                -- File id used in Telegram
     label TEXT NOT NULL,         -- Label of the file
     embedding BLOB NOT NULL      -- 4KB binary data (embedding)
 );
