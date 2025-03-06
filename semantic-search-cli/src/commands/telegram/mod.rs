@@ -7,16 +7,12 @@ mod inline;
 mod message;
 
 use crate::{config::BotConfig, util::Database, Config};
-use common::upload_or_reuse;
 use anyhow::{Context, Result};
 use argh::FromArgs;
-use log::debug;
+use common::upload_or_reuse;
+use frankenstein::{client_reqwest::Bot, AsyncTelegramApi, GetUpdatesParams, UpdateContent};
+use log::{debug, error};
 use semantic_search::ApiClient;
-use std::sync::Arc;
-use frankenstein::{
-    AsyncTelegramApi,
-    client_reqwest::Bot,
-};
 
 /// start a server to search for files
 #[derive(FromArgs, PartialEq, Eq, Debug)]
@@ -32,30 +28,52 @@ impl Telegram {
             .with_context(|| "Failed to open database, consider indexing first.")?;
         let api = ApiClient::new(config.api.key, config.api.model)?;
 
-        let BotConfig { token, whitelist, .. } = &config.bot;
+        let BotConfig {
+            token, whitelist, ..
+        } = &config.bot;
         if token.is_empty() {
             anyhow::bail!("No token provided for the Telegram bot.");
         }
-        // let bot = Bot::new(token).cache_me().throttle(Limits::default());
-        let bot = Bot::new(token); // TODO: cache_me, throttle
+        let bot = Bot::new(token); // TODO: throttle
+        let me = bot.get_me().await?.result;
 
-        // let handler = dptree::entry()
-        //     .filter(move |update: Update| {
-        //         if let Some(user) = update.from() {
-        //             whitelist.is_empty() || whitelist.contains(&user.id.0)
-        //         } else {
-        //             false
-        //         }
-        //     })
-        //     .branch(Update::filter_message().endpoint(message::message_handler))
-        //     .branch(Update::filter_inline_query().endpoint(inline::inline_handler));
+        let mut update_params = GetUpdatesParams::builder().build();
+        loop {
+            match bot.get_updates(&update_params).await {
+                Ok(updates) => {
+                    for update in updates.result {
+                        debug!("Received update: {update:?}");
+                        update_params.offset.replace(i64::from(update.update_id) + 1);
 
-        // Dispatcher::builder(bot, handler)
-        //     .dependencies(dptree::deps![db, api, config.bot])
-        //     .enable_ctrlc_handler()
-        //     .build()
-        //     .dispatch()
-        //     .await;
+                        match update.content {
+                            UpdateContent::Message(msg) => {
+                                let Some(sender) = &msg.from else {
+                                    continue;
+                                };
+                                let sender = sender.id;
+                                if !whitelist.is_empty() && !whitelist.contains(&sender) {
+                                    continue;
+                                }
+
+                                message::message_handler(&bot, &me, msg, &mut db, &api).await?;
+                            },
+                            UpdateContent::InlineQuery(query) => {
+                                let sender = query.from.id;
+                                if !whitelist.is_empty() && !whitelist.contains(&sender) {
+                                    continue;
+                                }
+
+                                inline::inline_handler(&bot, &me, query, &mut db, &api, &config.bot).await?;
+                            },
+                            _ => {},
+                        }
+                    }
+                },
+                Err(error) => {
+                    error!("Failed to get updates: {error:?}");
+                },
+            };
+        }
 
         Ok(())
     }

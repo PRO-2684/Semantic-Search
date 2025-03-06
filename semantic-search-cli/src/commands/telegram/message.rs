@@ -81,10 +81,10 @@ impl Command {
 /// Handles incoming messages.
 pub async fn message_handler(
     bot: &Bot,
-    msg: Message,
     me: &User,
+    msg: Message,
     db: &mut Database,
-    api: ApiClient,
+    api: &ApiClient,
 ) -> BotResult<()> {
     let Some(username) = &me.username else {
         log::error!("Bot username not found.");
@@ -101,7 +101,7 @@ pub async fn message_handler(
         return Ok(());
     };
     info!("Received valid command: `{text}`, parsed as: {cmd:?}");
-    answer_command(&bot, &msg, cmd, db, &api).await?;
+    answer_command(&bot, &msg, cmd, db, api).await?;
     Ok(())
 }
 

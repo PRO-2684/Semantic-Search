@@ -1,25 +1,19 @@
 //! Module for handling inline queries.
 
-use super::{ApiClient, BotConfig, Database, WrappedBot, upload_or_reuse};
+use super::{ApiClient, BotConfig, Database, upload_or_reuse};
+use frankenstein::{client_reqwest::Bot, InlineQuery, User};
 use log::info;
 use semantic_search::Embedding;
 use std::sync::Arc;
-use teloxide::{
-    dispatching::{UpdateFilterExt, UpdateHandler},
-    prelude::{Requester, ResponseResult},
-    types::{
-        InlineQuery, InlineQueryResult, InlineQueryResultArticle, InlineQueryResultCachedSticker, InputMessageContent, InputMessageContentText, Me, Update
-    },
-};
 use tokio::sync::Mutex;
 
 /// Handles inline queries.
 pub async fn inline_handler(
-    bot: WrappedBot,
-    me: Me,
+    bot: &Bot,
+    me: &User,
     query: InlineQuery,
-    db: Arc<Mutex<Database>>,
-    api: ApiClient,
+    db: &mut Database,
+    api: &ApiClient,
     config: &BotConfig,
 ) -> ResponseResult<()> {
     let InlineQuery { query: query_str, id: query_id, .. } = query;
