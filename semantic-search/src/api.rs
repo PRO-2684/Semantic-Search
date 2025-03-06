@@ -4,7 +4,7 @@
 
 use super::{embedding::EmbeddingBytes, SenseError};
 use base64::{engine::general_purpose::STANDARD as DECODER, Engine as _};
-use reqwest::{Client, Url};
+use reqwest::{header::HeaderMap, Client, ClientBuilder, Url};
 use serde::{Deserialize, Serialize};
 
 // == API key validation and model definitions ==
@@ -112,8 +112,6 @@ struct ResponseBody {
 /// A client for the SiliconFlow API.
 #[derive(Clone)]
 pub struct ApiClient {
-    /// API key.
-    key: String,
     /// The model to use.
     model: String,
     /// API endpoint.
@@ -126,11 +124,16 @@ impl ApiClient {
     /// Create a new API client.
     pub fn new(key: String, model: Model) -> Result<Self, SenseError> {
         validate_api_key(&key)?;
+        let mut headers = HeaderMap::new();
+        headers.insert("Authorization", format!("Bearer {key}").parse().unwrap());
+        let client = ClientBuilder::new()
+            .default_headers(headers)
+            .build()?;
+
         Ok(Self {
-            key,
             model: model.to_string(),
             endpoint: Url::parse("https://api.siliconflow.cn/v1/embeddings").unwrap(),
-            client: Client::new(),
+            client
         })
     }
 
@@ -144,7 +147,6 @@ impl ApiClient {
         let request = self
             .client
             .post(self.endpoint.clone())
-            .header("Authorization", format!("Bearer {}", self.key))
             .json(&request_body);
 
         let response: ResponseBody = request.send().await?.json().await?;

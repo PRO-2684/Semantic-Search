@@ -10,6 +10,8 @@
 
 TBD
 
+Note that for best results, all files must be of .PNG or .WEBP format.
+
 ## Configuration
 
 TBD
@@ -17,4 +19,3 @@ TBD
 ## Running
 
 TBD
-

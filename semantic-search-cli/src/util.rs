@@ -276,6 +276,39 @@ impl Database {
 
         Ok(count)
     }
+
+    /// Search for the top-N matches, returning the file path, similarity and file id.
+    pub async fn search_with_id(
+        &mut self,
+        n: usize,
+        embedding: &Embedding,
+    ) -> SqlResult<Vec<(String, f32, Option<String>)>> {
+        let mut results = Vec::with_capacity(n);
+        let rows = self.search(n, embedding).await?;
+
+        for (path, similarity) in rows {
+            let record = self.get(&path).await?;
+            let file_id = record.and_then(|r| r.file_id);
+            results.push((path, similarity, file_id));
+        }
+
+        Ok(results)
+    }
+
+    /// Sets file id for a record.
+    pub async fn set_file_id(&mut self, file_path: &str, file_id: &str) -> SqlResult<bool> {
+        let query = format!(
+            "UPDATE {TABLE_NAME} SET file_id = ? WHERE file_path = ?"
+        );
+        let query = sqlx::query(query.as_str());
+        let result = query
+            .bind(file_id)
+            .bind(file_path)
+            .execute(&mut self.conn)
+            .await?;
+
+        Ok(result.rows_affected() == 1)
+    }
 }
 
 /// Used query instructions.

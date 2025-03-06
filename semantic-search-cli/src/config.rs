@@ -51,9 +51,15 @@ pub struct BotConfig {
     /// Token for the Telegram bot.
     #[serde(default)]
     pub token: String,
+    /// Telegram user ID of the bot owner.
+    #[serde(default)]
+    pub owner: u64,
     /// White list of user IDs that can use the bot.
     #[serde(default)]
     pub whitelist: Vec<u64>,
+    /// Sticker set id for the bot (Optional).
+    #[serde(default = "defaults::sticker_set")]
+    pub sticker_set: String,
     /// Number of results to return.
     #[serde(default = "defaults::num_results")]
     pub num_results: usize,
@@ -63,8 +69,10 @@ impl Default for BotConfig {
     fn default() -> Self {
         Self {
             token: String::new(),
+            owner: 0,
             whitelist: Vec::new(),
             num_results: defaults::num_results(),
+            sticker_set: defaults::sticker_set(),
         }
     }
 }
@@ -100,6 +108,10 @@ mod defaults {
     /// Number of results to return.
     pub fn num_results() -> usize {
         5
+    }
+    /// Sticker set id for the bot.
+    pub fn sticker_set() -> String {
+        "meme".to_string()
     }
 }
 

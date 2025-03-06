@@ -1,6 +1,7 @@
 //! Module for handling messages.
 
-use super::{ApiClient, Database, ThrottledBot};
+use super::{ApiClient, Database, WrappedBot};
+use log::info;
 use semantic_search::Embedding;
 use std::sync::Arc;
 use teloxide::{
@@ -23,7 +24,7 @@ const FALLBACK_MESSAGES: [&str; 5] = [
 
 /// Handles incoming messages.
 pub async fn message_handler(
-    bot: ThrottledBot,
+    bot: WrappedBot,
     msg: Message,
     me: Me,
     db: Arc<Mutex<Database>>,
@@ -43,11 +44,12 @@ pub async fn message_handler(
         answer_fallback(&bot, msg).await?;
         return Ok(());
     };
-    answer_command(bot, msg, cmd, db, api).await?;
+    info!("Received valid command: `{text}`, parsed as: {cmd:?}");
+    answer_command(&bot, msg, cmd, db, &api).await?;
     Ok(())
 }
 
-#[derive(BotCommands, Clone)]
+#[derive(BotCommands, Clone, Debug)]
 #[command(
     rename_rule = "lowercase",
     description = "😼 Purr-fectly supported commands, just for your whiskers 🐾:"
@@ -63,11 +65,11 @@ pub enum Command {
 
 /// Answers the command.
 async fn answer_command(
-    bot: ThrottledBot,
+    bot: &WrappedBot,
     msg: Message,
     cmd: Command,
     db: Arc<Mutex<Database>>,
-    api: ApiClient,
+    api: &ApiClient,
 ) -> ResponseResult<()> {
     let chat_id = msg.chat.id;
     let message = match cmd {
@@ -97,9 +99,9 @@ async fn answer_command(
 
 /// Answers the search command.
 async fn answer_search(
-    bot: &ThrottledBot,
+    bot: &WrappedBot,
     chat_id: ChatId,
-    api: ApiClient,
+    api: &ApiClient,
     query: &str,
     db: Arc<Mutex<Database>>,
 ) -> Result<String, &'static str> {
@@ -131,7 +133,7 @@ async fn answer_search(
 }
 
 /// Fallback message.
-async fn answer_fallback(bot: &ThrottledBot, msg: Message) -> ResponseResult<()> {
+async fn answer_fallback(bot: &WrappedBot, msg: Message) -> ResponseResult<()> {
     // Choose a pseudo-random message from the fallback messages.
     let idx = msg.id.0.abs() as usize % FALLBACK_MESSAGES.len();
     bot.send_message(msg.chat.id, FALLBACK_MESSAGES[idx])
@@ -141,7 +143,7 @@ async fn answer_fallback(bot: &ThrottledBot, msg: Message) -> ResponseResult<()>
 }
 
 /// Error message.
-async fn answer_error(bot: &ThrottledBot, msg: Message, error: &str) -> ResponseResult<()> {
+async fn answer_error(bot: &WrappedBot, msg: Message, error: &str) -> ResponseResult<()> {
     bot.send_message(
         msg.chat.id,
         format!("😿 Oops! Something went wrong...\n{error}"),

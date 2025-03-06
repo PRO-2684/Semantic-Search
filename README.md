@@ -12,4 +12,3 @@ This repository is a Cargo workspace with the following members:
 ## Deploying Telegram bot
 
 See [TELEGRAM.md](./docs/TELEGRAM.md) for detailed instructions.
-

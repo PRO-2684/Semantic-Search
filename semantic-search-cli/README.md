@@ -27,9 +27,11 @@ key = "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" # API key for Silico
 model = "BAAI/bge-large-zh-v1.5" # Model to use for embedding (Optional)
 # Available models: BAAI/bge-large-zh-v1.5, BAAI/bge-large-en-v1.5, netease-youdao/bce-embedding-base_v1, BAAI/bge-m3, Pro/BAAI/bge-m3
 
-[bot]
-token = "1234567890:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" # Telegram bot token (Required for `sense bot`)
-whitelist = [1234567890] # Whitelisted chat IDs - Only these users can use the bot (Optional, all users can use the bot if not set or set to an empty array)
+[bot] # Only required for `sense bot`
+token = "1234567890:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" # Telegram bot token (Required)
+owner = 1234567890 # Telegram user ID of the bot owner (Required)
+whitelist = [] # Whitelisted user IDs - Only these users can use the bot (Optional, all users can use the bot if not set or set to an empty array)
+sticker_set = "meme" # Sticker set id prefix for the bot (Optional, an additional `_by_<bot_username>` will be appended to form the full sticker set id)
 num_results = 5 # Number of results to return (Optional)
 ```
 
@@ -75,6 +77,8 @@ You can start a Telegram bot to search for files using a chat interface:
 sense tg
 ```
 
+See [TELEGRAM.md](../docs/TELEGRAM.md) for detailed instructions on deploying the bot.
+
 ### Server
 
 You can start a server to search for files using a REST API:
@@ -97,5 +101,10 @@ $ curl -X POST http://localhost:8080/search -d '{"query": "cute cat", "limit": 5
     - [x] Labeling
     - [x] Embedding
     - [x] Searching
+    - [x] Telegram bot
     - [ ] Server
 - [x] Incremental update
+- [ ] Better error handling
+    - [ ] Reduce using of `unwrap()`, so as to make the program more robust to network failures
+    - [ ] Error logging
+- [ ] Try using references more often

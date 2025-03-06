@@ -7,13 +7,14 @@ mod inline;
 mod message;
 
 use crate::{config::BotConfig, util::Database, Config};
+use common::upload_or_reuse;
 use anyhow::{Context, Result};
 use argh::FromArgs;
 use log::debug;
 use semantic_search::ApiClient;
 use std::sync::Arc;
 use teloxide::{
-    adaptors::throttle::{Limits, Throttle},
+    adaptors::{throttle::{Limits, Throttle}, CacheMe},
     dispatching::{UpdateFilterExt, UpdateHandler},
     dptree,
     prelude::Dispatcher,
@@ -23,7 +24,7 @@ use teloxide::{
 };
 use tokio::sync::Mutex;
 
-type ThrottledBot = Throttle<Bot>;
+type WrappedBot = Throttle<CacheMe<Bot>>;
 
 /// start a server to search for files
 #[derive(FromArgs, PartialEq, Eq, Debug)]
@@ -34,21 +35,18 @@ pub struct Telegram {
 
 impl Telegram {
     pub async fn execute(&self, config: Config) -> Result<()> {
-        let db = Database::open(".sense/index.db3", true)
+        let db = Database::open(".sense/index.db3", false)
             .await
             .with_context(|| "Failed to open database, consider indexing first.")?;
         let db = Arc::new(Mutex::new(db));
         let api = ApiClient::new(config.api.key, config.api.model)?;
 
-        let BotConfig {
-            token,
-            whitelist,
-            num_results,
-        } = config.bot;
+        let token = config.bot.token.clone();
+        let whitelist = config.bot.whitelist.clone();
         if token.is_empty() {
             anyhow::bail!("No token provided for the Telegram bot.");
         }
-        let bot = Bot::new(token).throttle(Limits::default());
+        let bot = Bot::new(token).cache_me().throttle(Limits::default());
 
         let handler = dptree::entry()
             .filter(move |update: Update| {
@@ -58,19 +56,11 @@ impl Telegram {
                     false
                 }
             })
-            .branch(Update::filter_message().endpoint(
-                |bot: ThrottledBot,
-                 msg: Message,
-                 me: Me,
-                 db: Arc<Mutex<Database>>,
-                 api: ApiClient| async move {
-                    message::message_handler(bot, msg, me, db, api).await
-                },
-            ))
+            .branch(Update::filter_message().endpoint(message::message_handler))
             .branch(Update::filter_inline_query().endpoint(inline::inline_handler));
 
         Dispatcher::builder(bot, handler)
-            .dependencies(dptree::deps![db, api, num_results])
+            .dependencies(dptree::deps![db, api, config.bot])
             .enable_ctrlc_handler()
             .build()
             .dispatch()
