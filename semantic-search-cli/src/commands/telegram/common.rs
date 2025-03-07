@@ -10,18 +10,16 @@
 //
 // SendPhoto or InlineQueryResult(Cached)Photo
 
+use frankenstein::{client_reqwest::Bot, AddStickerToSetParams, AsyncTelegramApi, CreateNewStickerSetParams, Error, FileUpload, GetStickerSetParams, InputFile, InputSticker, StickerFormat, StickerType, UploadStickerFileParams, UploadStickerFileParamsBuilder, User};
 use log::{debug, error, warn};
-use teloxide::{
-    payloads::UploadStickerFile, prelude::Requester, types::{InputFile, InputSticker, Me, StickerFormat, UserId}, ApiError, RequestError
-};
 
-use super::{BotConfig, WrappedBot};
+use super::BotConfig;
 use crate::util::Database;
 
 /// Ensure the files are uploaded, also updating the database and filtering out non .PNG or .WEBP files.
 pub async fn upload_or_reuse(
-    bot: &WrappedBot,
-    me: &Me,
+    bot: &Bot,
+    me: &User,
     db: &mut Database,
     config: &BotConfig,
     pairs: Vec<(String, f32, Option<String>)>,
@@ -44,13 +42,17 @@ pub async fn upload_or_reuse(
             continue;
         }
 
-        let user_id = bot.get_me().await.unwrap().user.id;
-        let sticker = InputFile::file(&path);
-        let uploaded = bot
-            .upload_sticker_file(user_id, sticker, StickerFormat::Static)
-            .await;
+        let user_id = me.id;
+        let sticker = InputFile::builder().path((&path).into()).build();
+        let sticker_params = UploadStickerFileParams::builder()
+            .sticker_format(StickerFormat::Static)
+            .user_id(user_id)
+            .sticker(sticker)
+            .build();
+        let uploaded = bot.upload_sticker_file(&sticker_params).await;
+
         if let Ok(uploaded) = uploaded {
-            let file_id = uploaded.id;
+            let file_id = uploaded.result.file_id;
             match db.set_file_id(&path, &file_id).await {
                 Ok(true) => debug!("Uploaded sticker file: {}", path),
                 Ok(false) => warn!("Failed to update database: row affected mismatch for {path}"),
@@ -70,7 +72,7 @@ pub async fn upload_or_reuse(
 }
 
 /// Uploads to a sticker set. Creates one if not found.
-async fn upload_sticker_set(bot: &WrappedBot, me: &Me, config: &BotConfig, sticker_ids: Vec<&str>) {
+async fn upload_sticker_set(bot: &Bot, me: &User, config: &BotConfig, sticker_ids: Vec<&str>) {
     let owner = config.owner;
     let prefix = &config.sticker_set;
     let Some(bot_name) = &me.username else {
@@ -79,24 +81,23 @@ async fn upload_sticker_set(bot: &WrappedBot, me: &Me, config: &BotConfig, stick
     };
     let name = format!("{prefix}_by_{bot_name}");
 
-    match bot.get_sticker_set(&name).await {
+    let stickerset_params = GetStickerSetParams::builder().name(&name).build();
+    match bot.get_sticker_set(&stickerset_params).await {
         Ok(sticker_set) => {} // Sticker set exists
         Err(error) => {
             match error {
-                RequestError::Api(error) => {
-                    match error {
-                        ApiError::InvalidStickersSet => {
-                            // Sticker set does not exist
-                            create_sticker_set(bot, &name, owner, &sticker_ids).await;
-                        }
-                        _ => {
-                            error!("Failed to get sticker set - unexpected ApiError: {error:?}");
-                            return;
-                        }
+                Error::Api(error) => {
+                    let description = &error.description;
+                    if description == "Bad Request: STICKERSET_INVALID" {
+                        // Sticker set does not exist
+                        create_sticker_set(bot, &name, owner, &sticker_ids).await;
+                    } else {
+                        error!("Failed to get sticker set - unexpected api error: {error:?}");
+                        return;
                     }
                 }
                 error => {
-                    error!("Failed to get sticker set - unexpected RequestError: {error:?}");
+                    error!("Failed to get sticker set - unexpected error: {error:?}");
                     return;
                 }
             }
@@ -104,7 +105,12 @@ async fn upload_sticker_set(bot: &WrappedBot, me: &Me, config: &BotConfig, stick
     }
 
     for id in sticker_ids {
-        let result = bot.add_sticker_to_set(UserId(owner), &name, sticker(id)).await;
+        let add_params = AddStickerToSetParams::builder()
+            .user_id(owner)
+            .name(&name)
+            .sticker(sticker(id))
+            .build();
+        let result = bot.add_sticker_to_set(&add_params).await;
         if let Err(error) = result {
             error!("Failed to add sticker to set: {error}");
         } else {
@@ -114,9 +120,16 @@ async fn upload_sticker_set(bot: &WrappedBot, me: &Me, config: &BotConfig, stick
 }
 
 /// Creates a sticker set with the given full name.
-async fn create_sticker_set(bot: &WrappedBot, name: &str, owner: u64, sticker_ids: &Vec<&str>) {
+async fn create_sticker_set(bot: &Bot, name: &str, owner: u64, sticker_ids: &Vec<&str>) {
     let stickers: Vec<_> = sticker_ids.iter().map(|id| sticker(id)).collect();
-    let result = bot.create_new_sticker_set(UserId(owner), name, name, stickers, StickerFormat::Static).await;
+    let create_params = CreateNewStickerSetParams::builder()
+        .user_id(owner)
+        .name(name)
+        .title(name)
+        .stickers(stickers)
+        .sticker_type(StickerType::Regular)
+        .build();
+    let result = bot.create_new_sticker_set(&create_params).await;
     if let Err(error) = result {
         error!("Failed to create sticker set: {error}");
     } else {
@@ -126,10 +139,9 @@ async fn create_sticker_set(bot: &WrappedBot, name: &str, owner: u64, sticker_id
 
 /// Creates a sticker from sticker id.
 fn sticker(sticker_id: &str) -> InputSticker {
-    InputSticker {
-        sticker: InputFile::file_id(sticker_id),
-        emoji_list: vec!["😼".to_string()],
-        mask_position: None,
-        keywords: vec![]
-    }
+    InputSticker::builder()
+        .sticker(FileUpload::String(sticker_id.to_string()))
+        .format(StickerFormat::Static)
+        .emoji_list(vec!["😼".to_string()])
+        .build()
 }
