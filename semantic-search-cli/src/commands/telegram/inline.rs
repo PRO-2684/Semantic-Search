@@ -59,7 +59,7 @@ async fn handle_query(
         return Ok(());
     };
     let embedding: Embedding = raw_embedding.into();
-    let results = db.search_with_id(5, &embedding);
+    let results = db.search_with_id(config.num_results, &embedding);
     let Ok(results) = results.await else {
         bot.answer_inline_query(&text_query_params(
             &query_id,

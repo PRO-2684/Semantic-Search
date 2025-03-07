@@ -55,7 +55,7 @@ impl Telegram {
                                     continue;
                                 }
 
-                                message::message_handler(&bot, &me, msg, &mut db, &api).await?;
+                                message::message_handler(&bot, &me, msg, &mut db, &api, &config.bot).await?;
                             },
                             UpdateContent::InlineQuery(query) => {
                                 let sender = query.from.id;

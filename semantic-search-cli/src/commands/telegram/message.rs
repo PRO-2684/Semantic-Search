@@ -1,6 +1,6 @@
 //! Module for handling messages.
 
-use super::{ApiClient, Database};
+use super::{ApiClient, Database, BotConfig};
 use doc_for::{doc, doc_impl};
 use frankenstein::{
     client_reqwest::Bot, AsyncTelegramApi, ChatId, Error, Message, ReplyParameters,
@@ -85,6 +85,7 @@ pub async fn message_handler(
     msg: Message,
     db: &mut Database,
     api: &ApiClient,
+    config: &BotConfig,
 ) -> BotResult<()> {
     let Some(username) = &me.username else {
         log::error!("Bot username not found.");
@@ -101,7 +102,7 @@ pub async fn message_handler(
         return Ok(());
     };
     info!("Received valid command: `{text}`, parsed as: {cmd:?}");
-    answer_command(&bot, &msg, cmd, db, api).await?;
+    answer_command(&bot, &msg, cmd, db, api, config).await?;
     Ok(())
 }
 
@@ -112,6 +113,7 @@ async fn answer_command(
     cmd: Command,
     db: &mut Database,
     api: &ApiClient,
+    config: &BotConfig,
 ) -> BotResult<()> {
     let chat_id = msg.chat.id;
     let result = match cmd {
@@ -119,7 +121,7 @@ async fn answer_command(
             Ok(Command::description().to_string())
         }
         Command::Search(query) => {
-            answer_search(&bot, chat_id.into(), api, &query, db).await
+            answer_search(&bot, chat_id.into(), api, &query, db, config).await
         }
         Command::Inline => {
             Ok("🐾 Just mention me in any chat, followed by your query, and I'll pounce into action to fetch the purr-fect meme for you! 😼✨".to_string())
@@ -142,6 +144,7 @@ async fn answer_search(
     api: &ApiClient,
     query: &str,
     db: &mut Database,
+    config: &BotConfig,
 ) -> Result<String, String> {
     if query.is_empty() {
         return Ok("😾 Please prrr-ovide a query...".to_string());
@@ -150,7 +153,7 @@ async fn answer_search(
         return Err("Failed to embed the query".to_string());
     };
     let embedding: Embedding = raw_embedding.into();
-    let results = db.search(5, &embedding);
+    let results = db.search(config.num_results, &embedding);
     let Ok(results) = results.await else {
         return Err("Failed to search the database".to_string());
     };
