@@ -107,6 +107,7 @@ $ curl -X POST http://localhost:8080/search -d '{"query": "cute cat", "limit": 5
 - [ ] Better error handling
     - [ ] Reduce using of `unwrap()`, so as to make the program more robust to network failures
     - [ ] Error logging
+- [ ] Reducing clone
 - [ ] Enhance Telegram bot
     - [ ] Graceful shutdown
     - [ ] Multi-threading
