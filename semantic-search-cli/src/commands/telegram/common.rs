@@ -6,11 +6,13 @@
 // AddStickerToSet
 // SendSticker or InlineQueryResultCachedSticker
 
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
+use futures_util::future;
 use frankenstein::{client_reqwest::Bot, AddStickerToSetParams, AsyncTelegramApi, CreateNewStickerSetParams, Error, FileUpload, GetStickerSetParams, InputFile, InputSticker, StickerFormat, StickerType, UploadStickerFileParams, UploadStickerFileParamsBuilder, User};
 use log::{debug, error, warn};
 use image::{error::{ImageFormatHint, UnsupportedError, UnsupportedErrorKind}, imageops::FilterType, GenericImageView, ImageError, ImageFormat, ImageResult};
+use tokio::sync::Mutex;
 
 use super::BotConfig;
 use crate::util::Database;
@@ -19,59 +21,64 @@ use crate::util::Database;
 pub async fn upload_or_reuse(
     bot: &Bot,
     me: &User,
-    db: &mut Database,
+    db: Arc<Mutex<Database>>,
     config: &BotConfig,
     pairs: Vec<(String, f32, Option<String>)>,
 ) -> Vec<(String, f32, String)> {
-    let mut results = Vec::with_capacity(pairs.len());
-    // Newly uploaded stickers
-    let mut new = Vec::new();
-
-    for (path, confidence, file_id) in pairs {
-        // Already uploaded
-        if let Some(file_id) = file_id {
-            results.push((path, confidence, file_id));
-            continue;
-        }
-
-        // Image conversion
-        let (image, is_temp) = match convert_if_necessary(&path) {
-            Ok((image, is_temp)) => (image, is_temp),
-            Err(e) => {
-                warn!("Failed to convert image: {e} for {path}");
-                continue;
+    let user_id = me.id;
+    let tasks: Vec<_> = pairs.into_iter().map(|(path, confidence, file_id)| {
+        let db = db.clone();
+        async move { // This closure returns Some((path, confidence, file_id), new_file_id) if successful, where `new_file_id` is the file_id if it was newly uploaded.
+            // Already uploaded?
+            if let Some(existing_id) = file_id {
+                return Some(((path, confidence, existing_id), None));
             }
-        };
 
-        let user_id = me.id;
-        let sticker = InputFile::builder().path(image.clone()).build(); // TODO: Consider reducing cloning
-        let sticker_params = UploadStickerFileParams::builder()
-            .sticker_format(StickerFormat::Static)
-            .user_id(user_id)
-            .sticker(sticker)
-            .build();
-        let uploaded = bot.upload_sticker_file(&sticker_params).await;
-        if is_temp {
-            std::fs::remove_file(&image).unwrap();
-        }
+            // Image conversion
+            let (image, is_temp) = match convert_if_necessary(&path) {
+                Ok((image, is_temp)) => {
+                    (image, is_temp)
+                }
+                Err(e) => {
+                    warn!("Failed to convert image: {e} for {path}");
+                    return None;
+                }
+            };
 
-        if let Ok(uploaded) = uploaded {
-            let file_id = uploaded.result.file_id;
-            match db.set_file_id(&path, &file_id).await {
-                Ok(true) => debug!("Uploaded sticker file: {}", path),
-                Ok(false) => warn!("Failed to update database: row affected mismatch for {path}"),
-                Err(e) => warn!("Failed to update database: {e} for {path}"),
+            // Upload the sticker
+            let sticker = InputFile::builder().path(image.clone()).build();
+            let sticker_params = UploadStickerFileParams::builder()
+                .sticker_format(StickerFormat::Static)
+                .user_id(user_id)
+                .sticker(sticker)
+                .build();
+            let uploaded = bot.upload_sticker_file(&sticker_params).await;
+            if is_temp {
+                std::fs::remove_file(&image).unwrap();
             }
-            results.push((path, confidence, file_id.clone()));
-            new.push(file_id);
-        } else {
-            warn!("Failed to upload sticker file: {path}");
+
+            if let Ok(uploaded) = uploaded {
+                let file_id = uploaded.result.file_id;
+                let mut db = db.lock().await;
+                match db.set_file_id(&path, &file_id).await {
+                    Ok(true) => debug!("Uploaded sticker file: {}", path),
+                    Ok(false) => warn!("Failed to update database: row affected mismatch for {path}"),
+                    Err(e) => warn!("Failed to update database: {e} for {path}"),
+                }
+                Some(((path, confidence, file_id.clone()), Some(file_id)))
+            } else {
+                warn!("Failed to upload sticker file: {path}");
+                None
+            }
         }
-    }
+    }).collect();
 
-    let sticker_ids = new.iter().map(|file_id| file_id.as_str()).collect();
-    upload_sticker_set(bot, me, config, sticker_ids).await;
+    // Unzip the results
+    let results = future::join_all(tasks).await;
+    let (results, new_stickers): (Vec<_>, Vec<_>) = results.into_iter().filter_map(|x| x).unzip();
+    let new_stickers: Vec<_> = new_stickers.into_iter().filter_map(|x| x).collect();
 
+    upload_sticker_set(&bot, me, config, new_stickers.iter().map(AsRef::as_ref).collect()).await;
     results
 }
 
@@ -109,13 +116,15 @@ async fn upload_sticker_set(bot: &Bot, me: &User, config: &BotConfig, sticker_id
         }
     }
 
-    for id in sticker_ids {
-        let add_params = AddStickerToSetParams::builder()
+    let add_params: Vec<_> = sticker_ids.iter().map(|id| {
+        AddStickerToSetParams::builder()
             .user_id(owner)
             .name(&name)
             .sticker(sticker(id))
-            .build();
-        let result = bot.add_sticker_to_set(&add_params).await;
+            .build()
+    }).collect();
+    let results = futures_util::future::join_all(add_params.iter().map(|params| bot.add_sticker_to_set(params))).await;
+    for (id, result) in sticker_ids.iter().zip(results) {
         if let Err(error) = result {
             error!("Failed to add sticker to set: {error}");
         } else {
@@ -179,12 +188,14 @@ fn convert_if_necessary(path: &str) -> ImageResult<(PathBuf, bool)> {
     let one_side_512 = width == 512 || height == 512;
     let both_leq_512 = width <= 512 && height <= 512;
     if one_side_512 && both_leq_512 {
+        debug!("Image already meets requirements: {}", path.display());
         return Ok((path, false));
     }
 
     // Call resize_to_fill, which automatically fits for us
-    let new_path = path.with_extension("webp");
+    let new_path = path.with_extension("tmp.webp");
     let resized = image.resize_to_fill(512, 512, FilterType::Lanczos3);
+    debug!("Resized image: {} to {}", path.display(), new_path.display());
     resized.save(&new_path)?;
 
     Ok((new_path, true))

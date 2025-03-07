@@ -83,7 +83,7 @@ pub async fn message_handler(
     bot: &Bot,
     me: &User,
     msg: Message,
-    db: &mut Database,
+    db: Arc<Mutex<Database>>,
     api: &ApiClient,
     config: &BotConfig,
 ) -> BotResult<()> {
@@ -111,7 +111,7 @@ async fn answer_command(
     bot: &Bot,
     msg: &Message,
     cmd: Command,
-    db: &mut Database,
+    db: Arc<Mutex<Database>>,
     api: &ApiClient,
     config: &BotConfig,
 ) -> BotResult<()> {
@@ -143,7 +143,7 @@ async fn answer_search(
     chat_id: ChatId,
     api: &ApiClient,
     query: &str,
-    db: &mut Database,
+    db: Arc<Mutex<Database>>,
     config: &BotConfig,
 ) -> Result<String, String> {
     if query.is_empty() {
@@ -153,8 +153,11 @@ async fn answer_search(
         return Err("Failed to embed the query".to_string());
     };
     let embedding: Embedding = raw_embedding.into();
-    let results = db.search(config.num_results, &embedding);
-    let Ok(results) = results.await else {
+    let results = {
+        let mut db = db.lock().await;
+        db.search(config.num_results, &embedding).await
+    };
+    let Ok(results) = results else {
         return Err("Failed to search the database".to_string());
     };
     if results.is_empty() {

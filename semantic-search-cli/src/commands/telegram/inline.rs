@@ -14,7 +14,7 @@ pub async fn inline_handler(
     bot: &Bot,
     me: &User,
     query: InlineQuery,
-    db: &mut Database,
+    db: Arc<Mutex<Database>>,
     api: &ApiClient,
     config: &BotConfig,
 ) -> Result<(), Error> {
@@ -44,7 +44,7 @@ async fn handle_query(
     me: &User,
     query_str: &str,
     query_id: String,
-    db: &mut Database,
+    db: Arc<Mutex<Database>>,
     api: &ApiClient,
     config: &BotConfig,
 ) -> Result<(), Error> {
@@ -59,8 +59,11 @@ async fn handle_query(
         return Ok(());
     };
     let embedding: Embedding = raw_embedding.into();
-    let results = db.search_with_id(config.num_results, &embedding);
-    let Ok(results) = results.await else {
+    let results = {
+        let mut db = db.lock().await;
+        db.search_with_id(config.num_results, &embedding).await
+    };
+    let Ok(results) = results else {
         bot.answer_inline_query(&text_query_params(
             &query_id,
             "😿 Error",

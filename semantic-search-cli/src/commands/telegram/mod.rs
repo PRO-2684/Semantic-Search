@@ -6,6 +6,8 @@ mod common;
 mod inline;
 mod message;
 
+use std::sync::Arc;
+
 use crate::{config::BotConfig, util::Database, Config};
 use anyhow::{Context, Result};
 use argh::FromArgs;
@@ -13,6 +15,7 @@ use common::upload_or_reuse;
 use frankenstein::{client_reqwest::Bot, AsyncTelegramApi, GetUpdatesParams, UpdateContent};
 use log::{debug, error};
 use semantic_search::ApiClient;
+use tokio::sync::Mutex;
 
 /// start a server to search for files
 #[derive(FromArgs, PartialEq, Eq, Debug)]
@@ -23,9 +26,10 @@ pub struct Telegram {
 
 impl Telegram {
     pub async fn execute(&self, config: Config) -> Result<()> {
-        let mut db = Database::open(".sense/index.db3", false)
+        let db = Database::open(".sense/index.db3", false)
             .await
             .with_context(|| "Failed to open database, consider indexing first.")?;
+        let db = Arc::new(Mutex::new(db));
         let api = ApiClient::new(config.api.key, config.api.model)?;
 
         let BotConfig {
@@ -55,7 +59,7 @@ impl Telegram {
                                     continue;
                                 }
 
-                                message::message_handler(&bot, &me, msg, &mut db, &api, &config.bot).await?;
+                                message::message_handler(&bot, &me, msg, db.clone(), &api, &config.bot).await?;
                             },
                             UpdateContent::InlineQuery(query) => {
                                 let sender = query.from.id;
@@ -63,7 +67,7 @@ impl Telegram {
                                     continue;
                                 }
 
-                                inline::inline_handler(&bot, &me, query, &mut db, &api, &config.bot).await?;
+                                inline::inline_handler(&bot, &me, query, db.clone(), &api, &config.bot).await?;
                             },
                             _ => {},
                         }
