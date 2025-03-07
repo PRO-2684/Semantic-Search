@@ -75,6 +75,6 @@ impl Telegram {
             };
         }
 
-        Ok(())
+        // Ok(())
     }
 }
