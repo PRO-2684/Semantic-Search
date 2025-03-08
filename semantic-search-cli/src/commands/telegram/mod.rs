@@ -26,15 +26,23 @@ pub struct Telegram {
 }
 
 impl Telegram {
+    /// Start the Telegram bot.
+    ///
+    /// # Memory Leak
+    ///
+    /// Note that this function leaks `api`, `bot`, `me` and `bot_config`, so it shouldn't be called repeatedly. The rationale is that:
+    ///
+    /// 1. The function should run indefinitely
+    /// 2. Typically it will be called only once in a program's lifetime
+    /// 3. The leaked memory is small and will be freed when the program exits
+    /// 4. It avoids the need to clone or `Arc` the objects
     pub async fn execute(&self, config: Config) -> Result<()> {
         let mut db = Database::open(".sense/index.db3", false)
             .await
             .with_context(|| "Failed to open database, consider indexing first.")?;
         let api = ApiClient::new(config.api.key, config.api.model)?;
 
-        let BotConfig {
-            token, whitelist, ..
-        } = &config.bot;
+        let BotConfig { token, .. } = &config.bot;
         if token.is_empty() {
             anyhow::bail!("No token provided for the Telegram bot.");
         }
@@ -46,6 +54,13 @@ impl Telegram {
         common::init_stickers(&bot, &me, &mut db, &config.bot).await?;
         info!("Initialized stickers, start handling updates...");
 
+        // Leaking `api`, `bot`, `me` and `bot_config` here
+        let bot = Box::leak(Box::new(bot));
+        let me = Box::leak(Box::new(me));
+        let api = Box::leak(Box::new(api));
+        let bot_config = Box::leak(Box::new(config.bot));
+        let whitelist = &bot_config.whitelist;
+
         let db = Arc::new(Mutex::new(db));
         let mut update_params = GetUpdatesParams::builder().build();
         loop {
@@ -53,7 +68,7 @@ impl Telegram {
                 Ok(updates) => {
                     for update in updates.result {
                         debug!("Received update: {update:?}");
-                        update_params.offset.replace(i64::from(update.update_id) + 1);
+                        update_params.offset.replace((update.update_id + 1).into());
 
                         match update.content {
                             UpdateContent::Message(msg) => {
@@ -65,23 +80,37 @@ impl Telegram {
                                     continue;
                                 }
 
-                                message::message_handler(&bot, &me, msg, db.clone(), &api, &config.bot).await?;
-                            },
+                                tokio::spawn(message::message_handler(
+                                    bot,
+                                    me,
+                                    msg,
+                                    db.clone(),
+                                    api,
+                                    bot_config,
+                                ));
+                            }
                             UpdateContent::InlineQuery(query) => {
                                 let sender = query.from.id;
                                 if !whitelist.is_empty() && !whitelist.contains(&sender) {
                                     continue;
                                 }
 
-                                inline::inline_handler(&bot, &me, query, db.clone(), &api, &config.bot).await?;
-                            },
-                            _ => {},
+                                tokio::spawn(inline::inline_handler(
+                                    bot,
+                                    me,
+                                    query,
+                                    db.clone(),
+                                    api,
+                                    bot_config,
+                                ));
+                            }
+                            _ => {}
                         }
                     }
-                },
+                }
                 Err(error) => {
                     error!("Failed to get updates: {error:?}");
-                },
+                }
             };
         }
 

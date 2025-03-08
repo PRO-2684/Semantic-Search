@@ -298,9 +298,7 @@ impl Database {
         n: usize,
         embedding: &Embedding,
     ) -> SqlResult<Vec<(String, f32, String)>> {
-        let query = format!(
-            "SELECT file_path, embedding, file_id FROM {TABLE_NAME}"
-        );
+        let query = format!("SELECT file_path, embedding, file_id FROM {TABLE_NAME}");
         let query = sqlx::query(query.as_str());
         let mut rows = query.fetch(&mut self.conn);
 
@@ -309,7 +307,8 @@ impl Database {
             let row = row?;
             let file_path: String = row.get(0);
             let other_embedding: &[u8] = row.get(1);
-            let other_embedding: Embedding = other_embedding.try_into().expect("Invalid embedding size");
+            let other_embedding: Embedding =
+                other_embedding.try_into().expect("Invalid embedding size");
             let similarity = embedding.cosine_similarity(&other_embedding);
             let file_id: String = row.get(2);
             // Top N results
@@ -327,9 +326,7 @@ impl Database {
 
     /// Sets file id for a record.
     pub async fn set_file_id(&mut self, file_path: &str, file_id: &str) -> SqlResult<bool> {
-        let query = format!(
-            "UPDATE {TABLE_NAME} SET file_id = ? WHERE file_path = ?"
-        );
+        let query = format!("UPDATE {TABLE_NAME} SET file_id = ? WHERE file_path = ?");
         let query = sqlx::query(query.as_str());
         let result = query
             .bind(file_id)

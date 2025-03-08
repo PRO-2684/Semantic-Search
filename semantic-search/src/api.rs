@@ -126,14 +126,12 @@ impl ApiClient {
         validate_api_key(&key)?;
         let mut headers = HeaderMap::new();
         headers.insert("Authorization", format!("Bearer {key}").parse().unwrap());
-        let client = ClientBuilder::new()
-            .default_headers(headers)
-            .build()?;
+        let client = ClientBuilder::new().default_headers(headers).build()?;
 
         Ok(Self {
             model: model.to_string(),
             endpoint: Url::parse("https://api.siliconflow.cn/v1/embeddings").unwrap(),
-            client
+            client,
         })
     }
 
@@ -144,10 +142,7 @@ impl ApiClient {
             input: text,
             encoding_format: "base64",
         };
-        let request = self
-            .client
-            .post(self.endpoint.clone())
-            .json(&request_body);
+        let request = self.client.post(self.endpoint.clone()).json(&request_body);
 
         let response: ResponseBody = request.send().await?.json().await?;
         assert_eq!(response.model, self.model);
