@@ -27,8 +27,8 @@ pub async fn inline_handler(
     if query_str.is_empty() {
         bot.answer_inline_query(&text_query_params(
             &query_id,
-            "😸 Meow!",
-            "Continue typing to search...",
+            "Meow!",
+            "Keep paw-typing to sniff out the purr-fect meme... 😸",
         ))
         .await?;
         Ok(())

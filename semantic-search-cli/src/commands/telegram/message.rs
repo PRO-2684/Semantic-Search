@@ -28,7 +28,7 @@ pub enum Command {
     Search(String),
     /// learn how to summon this kitty anywhere with a flick of your paw.
     Inline,
-    /// debug command
+    /// a secret paw-session for debugging - sends a sticker with the given id.
     Debug(String),
 }
 
@@ -129,16 +129,7 @@ async fn answer_command(
         }
         Command::Debug(arg) => {
             if arg.is_empty() {
-                // Show the current sticker set
-                let get_params = GetStickerSetParams::builder().name("meme_by_SenseMemeBot").build();
-                let stickerset = bot.get_sticker_set(&get_params).await?.result;
-                let stickers = stickerset.stickers;
-                let message = stickers
-                    .into_iter()
-                    .map(|sticker| format!("🐾 {} {}", sticker.file_id, sticker.file_unique_id))
-                    .collect::<Vec<String>>()
-                    .join("\n");
-                Ok(message)
+                Ok("🐾 Paws and reflect! Please provide a sticker id... 🐱".to_string())
             } else {
                 // Send given sticker
                 let sticker = FileUpload::String(arg);
@@ -147,7 +138,7 @@ async fn answer_command(
                     .sticker(sticker)
                     .build();
                 bot.send_sticker(&send_params).await?;
-                Ok("🐾 Sent the sticker!".to_string())
+                Ok("🐾 Sticker sent! Hope it made your whiskers twitch! 😼".to_string())
             }
         }
     };

@@ -13,7 +13,7 @@ pub struct Search {
     #[argh(positional)]
     pub query: String,
     /// number of results to show
-    #[argh(option, short = 'n', default = "5")]
+    #[argh(option, short = 'n', default = "8")]
     pub num_results: usize,
 }
 

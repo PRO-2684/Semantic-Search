@@ -107,7 +107,7 @@ mod defaults {
     }
     /// Number of results to return.
     pub fn num_results() -> usize {
-        5
+        8
     }
     /// Sticker set id for the bot.
     pub fn sticker_set() -> String {

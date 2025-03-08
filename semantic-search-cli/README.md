@@ -32,7 +32,7 @@ token = "1234567890:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" # Telegram bot token (Re
 owner = 1234567890 # Telegram user ID of the bot owner (Required)
 whitelist = [] # Whitelisted user IDs - Only these users can use the bot (Optional, all users can use the bot if not set or set to an empty array)
 sticker_set = "meme" # Sticker set id prefix for the bot (Optional, an additional `_by_<bot_username>` will be appended to form the full sticker set id)
-num_results = 5 # Number of results to return (Optional)
+num_results = 8 # Number of results to return (Optional)
 ```
 
 ### Indexing
@@ -60,7 +60,7 @@ sense search "cute cat"
 You can specify how many results you want to display using the `--num-results` flag, or `-n` for short:
 
 ```bash
-sense search "cute cat" -n 5 # Default
+sense search "cute cat" -n 8 # Default
 ```
 
 (TBD) Also, you can specify the regular expression for the path of the files using the `--path` flag, or `-p` for short:
