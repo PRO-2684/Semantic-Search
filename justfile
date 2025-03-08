@@ -1,19 +1,13 @@
-alias b := build
-# alias v := bump
+alias v := bump
 alias r := run
 alias s := search
 alias d := debug
 alias t := test
 
-# Build release binary
-[doc("\u{001b}[4mB\u{001b}[24muild release binary")]
-build:
-    cargo build --release --bin sense
-
 # Bump version
-# [doc("Bump \u{001b}[4mv\u{001b}[24mersion")]
-# bump:
-#     ./scripts/bump-version.sh
+[doc("Bump \u{001b}[4mv\u{001b}[24mersion")]
+bump:
+    ./scripts/bump-version.sh
 
 # Compile and run
 [doc("Compile and \u{001b}[4mr\u{001b}[24mun")]
@@ -25,9 +19,9 @@ run *args:
 search term:
     cd tests && cargo run -- search "{{term}}"
 
-# Compile and run Telegram bot
+# Compile and run Telegram bot with proxy (http_proxy, https_proxy)
 tg *args:
-    cd tests && cargo run -- tg {{args}}
+    cd tests && http_proxy="http://127.0.0.1:7890" https_proxy="http://127.0.0.1:7890" cargo run -- tg {{args}}
 
 # Compile and run (with debug logging)
 [doc("Compile and run (with \u{001b}[4md\u{001b}[24mebug logging)")]
