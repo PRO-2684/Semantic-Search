@@ -10,7 +10,7 @@
 
 TBD
 
-Note that for best results, all files must be of .PNG or .WEBP format.
+Note that for best results, all files must be of .JP(E)G, .PNG or .WEBP format. Also, no more than 120 new images per initialization.
 
 ## Configuration
 
@@ -19,3 +19,7 @@ TBD
 ## Running
 
 TBD
+
+## Modification
+
+Each time you changed files, you should run `sense index` to re-index for the changes to take effect on the bot.

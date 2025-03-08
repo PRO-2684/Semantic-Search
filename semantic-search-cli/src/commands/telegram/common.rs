@@ -1,147 +1,196 @@
 //! Common functions for telegram commands.
 
-// Using static stickers:
+// Init stickers:
 // UploadStickerFile?
 // GetStickerSet / CreateNewStickerSet?
 // AddStickerToSet
+// DeleteStickerFromSet
+
+// Sending stickers:
 // SendSticker or InlineQueryResultCachedSticker
 
 use std::{path::PathBuf, sync::Arc};
 
-use futures_util::future;
-use frankenstein::{client_reqwest::Bot, AddStickerToSetParams, AsyncTelegramApi, CreateNewStickerSetParams, Error, FileUpload, GetStickerSetParams, InputFile, InputSticker, StickerFormat, StickerType, UploadStickerFileParams, UploadStickerFileParamsBuilder, User};
+use futures_util::{future, StreamExt};
+use frankenstein::{client_reqwest::Bot, AddStickerToSetParams, AsyncTelegramApi, CreateNewStickerSetParams, DeleteStickerFromSetParams, Error, FileUpload, GetStickerSetParams, InputFile, InputSticker, StickerFormat, StickerSet, StickerType, UploadStickerFileParams, UploadStickerFileParamsBuilder, User};
 use log::{debug, error, warn};
 use image::{error::{ImageFormatHint, UnsupportedError, UnsupportedErrorKind}, imageops::FilterType, GenericImageView, ImageError, ImageFormat, ImageResult};
 use tokio::sync::Mutex;
 
-use super::BotConfig;
+use super::{BotConfig, BotResult};
 use crate::util::Database;
 
-/// Ensure the files are uploaded, also updating the database.
-pub async fn upload_or_reuse(
+/// Initialize stickers.
+pub async fn init_stickers(
     bot: &Bot,
     me: &User,
-    db: Arc<Mutex<Database>>,
+    db: &mut Database,
     config: &BotConfig,
-    pairs: Vec<(String, f32, Option<String>)>,
-) -> Vec<(String, f32, String)> {
-    let user_id = me.id;
-    let tasks: Vec<_> = pairs.into_iter().map(|(path, confidence, file_id)| {
-        let db = db.clone();
-        async move { // This closure returns Some((path, confidence, file_id, is_new) if successful.
-            // Already uploaded?
-            if let Some(existing_id) = file_id {
-                debug!("Sticker file already uploaded {path} with id {existing_id}");
-                return Some((path, confidence, existing_id, false));
-            }
+) -> anyhow::Result<()> {
+    let Some(bot_name) = &me.username else {
+        anyhow::bail!("Cannot initialize stickers without a bot username.");
+    };
+    let sticker_set_name = format!("{}_by_{}", config.sticker_set, bot_name);
+    let get_params = GetStickerSetParams::builder().name(&sticker_set_name).build();
 
-            // Image conversion
-            let (image, is_temp) = match convert_if_necessary(&path) {
-                Ok((image, is_temp)) => {
-                    (image, is_temp)
+    // Check if the sticker set exists
+    let mut paths_iter = db
+        .iter_file_ids()
+        .filter_map(|row| future::ready(
+            // Only yields path on Ok variants with missing file ids
+            match row {
+                Ok((path, None)) => Some(path),
+                Ok((path, Some(file_id))) => {
+                    debug!("Sticker {path} already uploaded: {file_id}");
+                    None
                 }
                 Err(e) => {
-                    warn!("Failed to convert image: {e} for {path}");
-                    return None;
+                    warn!("Failed to read database: {e}");
+                    None
                 }
-            };
-
-            // Upload the sticker
-            let sticker = InputFile::builder().path(image.clone()).build();
-            let sticker_params = UploadStickerFileParams::builder()
-                .sticker_format(StickerFormat::Static)
-                .user_id(user_id)
-                .sticker(sticker)
-                .build();
-            let uploaded = bot.upload_sticker_file(&sticker_params).await;
-            if is_temp {
-                std::fs::remove_file(&image).unwrap();
             }
+        ));
+    let sticker_set = get_sticker_set(bot, &get_params).await;
+    let mut collected_paths = Vec::new();
 
-            if let Ok(uploaded) = uploaded {
-                let file_id = uploaded.result.file_id;
-                let mut db = db.lock().await;
-                match db.set_file_id(&path, &file_id).await {
-                    Ok(true) => debug!("Uploaded sticker file {path} with id {file_id}"),
-                    Ok(false) => warn!("Failed to update database: row affected mismatch for {path}"),
-                    Err(e) => warn!("Failed to update database: {e} for {path}"),
-                }
-                Some((path, confidence, file_id, true))
-            } else {
-                warn!("Failed to upload sticker file: {path}");
-                None
-            }
+    if let Some(sticker_set) = sticker_set {
+        // Empty the sticker set
+        debug!("Sticker set found: {sticker_set_name}, emptying...");
+        empty_sticker_set(bot, sticker_set).await?;
+    } else {
+        // If the sticker set does not exist, create it with one sticker
+        debug!("Sticker set not found: {sticker_set_name}, creating...");
+        let Some(path) = paths_iter.next().await else {
+            anyhow::bail!("No stickers found in the database.");
+        };
+        let Ok(file_id) = upload_sticker_file(bot, &path, me.id).await else {
+            anyhow::bail!("Failed to upload sticker file: {path}");
+        };
+        create_sticker_set(bot, &sticker_set_name, me.id, &vec![&file_id]).await?;
+        collected_paths.push(path);
+    }
+
+    // Upload the rest of the stickers
+    debug!("Uploading stickers...");
+    while let Some(path) = paths_iter.next().await {
+        let Ok(file_id) = upload_sticker_file(bot, &path, me.id).await else {
+            anyhow::bail!("Failed to upload sticker file: {path}");
+        };
+        let add_params = AddStickerToSetParams::builder()
+            .user_id(me.id)
+            .name(&sticker_set_name)
+            .sticker(sticker(&file_id))
+            .build();
+        let result = bot.add_sticker_to_set(&add_params).await;
+        if let Err(error) = result {
+            error!("Failed to add sticker {path} to set: {error}");
+        } else {
+            debug!("Added sticker {path} to set");
+            collected_paths.push(path);
         }
-    }).collect();
+    }
+    drop(paths_iter);
 
-    // Unzip the results
-    let results = future::join_all(tasks).await.into_iter().filter_map(|x| x);
-    let (results, is_new): (Vec<_>, Vec<_>) = results.map(
-        |(path, confidence, file_id, is_new)| ((path, confidence, file_id), is_new)
-    ).unzip();
-    let new_stickers: Vec<_> = results.iter().zip(is_new.into_iter()).filter_map(
-        |((path, confidence, file_id), is_new)| if is_new { Some(file_id) } else { None }
-    ).collect();
+    // Get file ids using GetStickerSet
+    let sticker_set = bot.get_sticker_set(&get_params).await?.result;
+    // Take the last `paths.len()` stickers
+    let skip = sticker_set.stickers.len() - collected_paths.len();
+    let file_ids = sticker_set.stickers.iter().skip(skip).map(|sticker| &sticker.file_id);
 
-    upload_sticker_set(&bot, me, config, new_stickers).await;
-    results
+    // Update database
+    debug!("Updating database...");
+    for (path, file_id) in collected_paths.iter().zip(file_ids) {
+        match db.set_file_id(path, file_id).await {
+            Ok(true) => debug!("Updated database with file id for {path}"),
+            Ok(false) => warn!("Failed to update database: row affected mismatch for {path}"),
+            Err(e) => warn!("Failed to update database: {e} for {path}"),
+        }
+    }
+
+    // Empty the sticker set
+    debug!("Emptying sticker set...");
+    empty_sticker_set(bot, sticker_set).await?;
+
+    Ok(())
 }
 
-/// Uploads to a sticker set. Creates one if not found.
-async fn upload_sticker_set(bot: &Bot, me: &User, config: &BotConfig, sticker_ids: Vec<&String>) {
-    let owner = config.owner;
-    let prefix = &config.sticker_set;
-    let Some(bot_name) = &me.username else {
-        error!("Cannot upload stickers without a bot username.");
-        return;
-    };
-    let name = format!("{prefix}_by_{bot_name}");
-
-    let stickerset_params = GetStickerSetParams::builder().name(&name).build();
-    match bot.get_sticker_set(&stickerset_params).await {
-        Ok(sticker_set) => {} // Sticker set exists
+/// Check if the sticker set exists, returning the sticker set if found.
+async fn get_sticker_set(bot: &Bot, get_params: &GetStickerSetParams) -> Option<StickerSet> {
+    match bot.get_sticker_set(&get_params).await {
+        Ok(result) => Some(result.result),
         Err(error) => {
             match error {
                 Error::Api(error) => {
                     let description = &error.description;
-                    if description == "Bad Request: STICKERSET_INVALID" {
-                        // Sticker set does not exist
-                        debug!("Sticker set does not exist: {name}, creating...");
-                        create_sticker_set(bot, &name, owner, &sticker_ids).await;
-                        return;
-                    } else {
+                    if description != "Bad Request: STICKERSET_INVALID" {
                         error!("Failed to get sticker set - unexpected api error: {error:?}");
-                        return;
                     }
                 }
                 error => {
                     error!("Failed to get sticker set - unexpected error: {error:?}");
-                    return;
                 }
             }
-        }
-    }
-
-    let add_params: Vec<_> = sticker_ids.iter().map(|id| {
-        AddStickerToSetParams::builder()
-            .user_id(owner)
-            .name(&name)
-            .sticker(sticker(id))
-            .build()
-    }).collect();
-    let results = futures_util::future::join_all(add_params.iter().map(|params| bot.add_sticker_to_set(params))).await;
-    for (id, result) in sticker_ids.iter().zip(results) {
-        if let Err(error) = result {
-            error!("Failed to add sticker {id} to set: {error}");
-        } else {
-            debug!("Added sticker {id} to set");
-        }
+            None
+        },
     }
 }
 
-/// Creates a sticker set with the given full name.
-async fn create_sticker_set(bot: &Bot, name: &str, owner: u64, sticker_ids: &Vec<&String>) {
-    let stickers: Vec<_> = sticker_ids.iter().map(|id| sticker(id)).collect();
+/// Upload a sticker file.
+async fn upload_sticker_file(bot: &Bot, path: &str, user_id: u64) -> Result<String, String> {
+    // Image conversion
+    let (image, is_temp) = match convert_if_necessary(&path) {
+        Ok((image, is_temp)) => {
+            (image, is_temp)
+        }
+        Err(e) => {
+            return Err(format!("Failed to convert image: {e} for {path}"));
+        }
+    };
+
+    // Upload the sticker
+    let sticker = InputFile::builder().path(image.clone()).build();
+    let sticker_params = UploadStickerFileParams::builder()
+        .sticker_format(StickerFormat::Static)
+        .user_id(user_id)
+        .sticker(sticker)
+        .build();
+    let uploaded = bot.upload_sticker_file(&sticker_params).await;
+    if is_temp {
+        std::fs::remove_file(&image).unwrap();
+    }
+
+    if let Ok(uploaded) = uploaded {
+        let file_id = uploaded.result.file_id;
+        debug!("Uploaded sticker file {path} with id {file_id}");
+        Ok(file_id)
+    } else {
+        Err(format!("Failed to upload sticker file: {path}"))
+    }
+}
+
+/// Empty the sticker set.
+pub async fn empty_sticker_set(bot: &Bot, sticker_set: StickerSet) -> BotResult<Vec<String>> {
+    let file_ids: Vec<_> = sticker_set.stickers.into_iter().map(|sticker| sticker.file_id).collect();
+    let delete_params: Vec<_> = file_ids.iter().map(|id| {
+        DeleteStickerFromSetParams::builder()
+            .sticker(id)
+            .build()
+    }).collect();
+    let results = futures_util::future::join_all(delete_params.iter().map(|params| bot.delete_sticker_from_set(params))).await;
+    for (id, result) in file_ids.iter().zip(results) {
+        if let Err(error) = result {
+            error!("Failed to delete sticker {id} from set: {error}");
+        } else {
+            debug!("Deleted sticker {id} from set");
+        }
+    }
+
+    Ok(file_ids)
+}
+
+/// Create a sticker set with the given full name.
+async fn create_sticker_set(bot: &Bot, name: &str, owner: u64, file_ids: &Vec<&String>) -> BotResult<()> {
+    let stickers: Vec<_> = file_ids.iter().map(|id| sticker(id)).collect();
     let create_params = CreateNewStickerSetParams::builder()
         .user_id(owner)
         .name(name)
@@ -150,17 +199,13 @@ async fn create_sticker_set(bot: &Bot, name: &str, owner: u64, sticker_ids: &Vec
         .sticker_type(StickerType::Regular)
         .build();
     let result = bot.create_new_sticker_set(&create_params).await;
-    if let Err(error) = result {
-        error!("Failed to create sticker set: {error}");
-    } else {
-        debug!("Created sticker set `{name}` with {} stickers", sticker_ids.len());
-    }
+    result.map(|_| ())
 }
 
-/// Creates a sticker from sticker id.
-fn sticker(sticker_id: &str) -> InputSticker {
+/// Create a sticker from file id.
+fn sticker(file_id: &str) -> InputSticker {
     InputSticker::builder()
-        .sticker(FileUpload::String(sticker_id.to_string()))
+        .sticker(FileUpload::String(file_id.to_string()))
         .format(StickerFormat::Static)
         .emoji_list(vec!["😼".to_string()])
         .build()
@@ -199,7 +244,7 @@ fn convert_if_necessary(path: &str) -> ImageResult<(PathBuf, bool)> {
     }
 
     // Call resize_to_fill, which automatically fits for us
-    let new_path = path.with_extension("tmp.png");
+    let new_path = path.with_extension("tmp.webp");
     let resized = image.resize_to_fill(512, 512, FilterType::Lanczos3);
     debug!("Resized image: {} to {}", path.display(), new_path.display());
     resized.save(&new_path)?;

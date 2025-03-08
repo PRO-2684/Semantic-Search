@@ -249,6 +249,21 @@ impl Database {
         result
     }
 
+    /// Iterate over all records in the database, together with file id.
+    pub fn iter_file_ids(&mut self) -> BoxStream<'_, SqlResult<(String, Option<String>)>> {
+        let query = sqlx::query(queries::QUERY_FILE_ID);
+        let result = query
+            .fetch(&mut self.conn)
+            .map(|row| {
+                let row = row?;
+                let file_path: String = row.get(0);
+                let file_id: Option<String> = row.get(1);
+                Ok((file_path, file_id))
+            })
+            .boxed();
+        result
+    }
+
     /// Clean up the database, removing records that no longer exist on disk.
     pub async fn clean<T>(&mut self, ref_path: T) -> SqlResult<usize>
     where
@@ -277,19 +292,34 @@ impl Database {
         Ok(count)
     }
 
-    /// Search for the top-N matches, returning the file path, similarity and file id.
+    /// Search for the top-N matches, returning the file path, similarity and file id, ensuring file id exists.
     pub async fn search_with_id(
         &mut self,
         n: usize,
         embedding: &Embedding,
-    ) -> SqlResult<Vec<(String, f32, Option<String>)>> {
-        let mut results = Vec::with_capacity(n);
-        let rows = self.search(n, embedding).await?;
+    ) -> SqlResult<Vec<(String, f32, String)>> {
+        let query = format!(
+            "SELECT file_path, embedding, file_id FROM {TABLE_NAME}"
+        );
+        let query = sqlx::query(query.as_str());
+        let mut rows = query.fetch(&mut self.conn);
 
-        for (path, similarity) in rows {
-            let record = self.get(&path).await?;
-            let file_id = record.and_then(|r| r.file_id);
-            results.push((path, similarity, file_id));
+        let mut results = Vec::with_capacity(n);
+        while let Some(row) = rows.next().await {
+            let row = row?;
+            let file_path: String = row.get(0);
+            let other_embedding: &[u8] = row.get(1);
+            let other_embedding: Embedding = other_embedding.try_into().expect("Invalid embedding size");
+            let similarity = embedding.cosine_similarity(&other_embedding);
+            let file_id: String = row.get(2);
+            // Top N results
+            if results.len() < n {
+                results.push((file_path, similarity, file_id));
+            } else if results.last().unwrap().1 < similarity {
+                results.pop();
+                results.push((file_path, similarity, file_id));
+            }
+            results.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
         }
 
         Ok(results)
@@ -315,6 +345,7 @@ impl Database {
 mod queries {
     pub const QUERY_PATH: &str = "SELECT file_path FROM files";
     pub const QUERY_EMBEDDING: &str = "SELECT file_path, embedding FROM files";
+    pub const QUERY_FILE_ID: &str = "SELECT file_path, file_id FROM files";
 }
 
 #[cfg(test)]

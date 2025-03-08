@@ -1,6 +1,6 @@
 //! Module for handling inline queries.
 
-use super::{upload_or_reuse, ApiClient, BotConfig, Database};
+use super::{ApiClient, BotConfig, BotResult, Database};
 use frankenstein::{
     client_reqwest::Bot, AnswerInlineQueryParams, AsyncTelegramApi, Error, InlineQuery, InlineQueryResult, InlineQueryResultArticle, InlineQueryResultCachedSticker, InputMessageContent, InputTextMessageContent, User
 };
@@ -17,7 +17,7 @@ pub async fn inline_handler(
     db: Arc<Mutex<Database>>,
     api: &ApiClient,
     config: &BotConfig,
-) -> Result<(), Error> {
+) -> BotResult<()> {
     let InlineQuery {
         query: query_str,
         id: query_id,
@@ -47,7 +47,7 @@ async fn handle_query(
     db: Arc<Mutex<Database>>,
     api: &ApiClient,
     config: &BotConfig,
-) -> Result<(), Error> {
+) -> BotResult<()> {
     info!("Handling inline query: {}", query_str);
     let Ok(raw_embedding) = api.embed(query_str).await else {
         bot.answer_inline_query(&text_query_params(
@@ -72,7 +72,6 @@ async fn handle_query(
         .await?;
         return Ok(());
     };
-    let results = upload_or_reuse(bot, me, db, config, results).await;
     if results.is_empty() {
         bot.answer_inline_query(&text_query_params(
             &query_id,

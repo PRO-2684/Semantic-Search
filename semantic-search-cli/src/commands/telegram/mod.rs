@@ -11,11 +11,12 @@ use std::sync::Arc;
 use crate::{config::BotConfig, util::Database, Config};
 use anyhow::{Context, Result};
 use argh::FromArgs;
-use common::upload_or_reuse;
-use frankenstein::{client_reqwest::Bot, AsyncTelegramApi, GetUpdatesParams, UpdateContent};
-use log::{debug, error};
+use frankenstein::{client_reqwest::Bot, AsyncTelegramApi, Error, GetUpdatesParams, UpdateContent};
+use log::{debug, error, info};
 use semantic_search::ApiClient;
 use tokio::sync::Mutex;
+
+type BotResult<T> = Result<T, Error>;
 
 /// start a server to search for files
 #[derive(FromArgs, PartialEq, Eq, Debug)]
@@ -26,10 +27,9 @@ pub struct Telegram {
 
 impl Telegram {
     pub async fn execute(&self, config: Config) -> Result<()> {
-        let db = Database::open(".sense/index.db3", false)
+        let mut db = Database::open(".sense/index.db3", false)
             .await
             .with_context(|| "Failed to open database, consider indexing first.")?;
-        let db = Arc::new(Mutex::new(db));
         let api = ApiClient::new(config.api.key, config.api.model)?;
 
         let BotConfig {
@@ -41,6 +41,12 @@ impl Telegram {
         let bot = Bot::new(token); // TODO: throttle
         let me = bot.get_me().await?.result;
 
+        // Upload stickers
+        info!("Initializing stickers...");
+        common::init_stickers(&bot, &me, &mut db, &config.bot).await?;
+        info!("Initialized stickers, start handling updates...");
+
+        let db = Arc::new(Mutex::new(db));
         let mut update_params = GetUpdatesParams::builder().build();
         loop {
             match bot.get_updates(&update_params).await {

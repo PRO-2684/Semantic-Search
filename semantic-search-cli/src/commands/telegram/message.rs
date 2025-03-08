@@ -1,16 +1,14 @@
 //! Module for handling messages.
 
-use super::{ApiClient, Database, BotConfig};
+use super::{ApiClient, Database, BotConfig, BotResult};
 use doc_for::{doc, doc_impl};
 use frankenstein::{
-    client_reqwest::Bot, AsyncTelegramApi, ChatId, Error, GetStickerSetParams, Message, ReplyParameters, SendMessageParams, User
+    client_reqwest::Bot, AsyncTelegramApi, ChatId, Error, FileUpload, GetStickerSetParams, Message, ReplyParameters, SendMessageParams, SendStickerParams, User
 };
 use log::info;
 use semantic_search::Embedding;
 use std::sync::Arc;
 use tokio::sync::Mutex;
-
-type BotResult<T> = Result<T, Error>;
 
 const FALLBACK_MESSAGES: [&str; 5] = [
     "😹 Maow?",
@@ -31,7 +29,7 @@ pub enum Command {
     /// learn how to summon this kitty anywhere with a flick of your paw.
     Inline,
     /// debug command
-    Debug,
+    Debug(String),
 }
 
 impl Command {
@@ -75,7 +73,7 @@ impl Command {
             "help" => Some(Self::Help),
             "search" => Some(Self::Search(arg.to_string())),
             "inline" => Some(Self::Inline),
-            "debug" => Some(Self::Debug),
+            "debug" => Some(Self::Debug(arg.to_string())),
             _ => None,
         }
     }
@@ -129,16 +127,28 @@ async fn answer_command(
         Command::Inline => {
             Ok("🐾 Just mention me in any chat, followed by your query, and I'll pounce into action to fetch the purr-fect meme for you! 😼✨".to_string())
         }
-        Command::Debug => {
-            let get_params = GetStickerSetParams::builder().name("meme_by_SenseMemeBot").build();
-            let stickerset = bot.get_sticker_set(&get_params).await?.result;
-            let stickers = stickerset.stickers;
-            let message = stickers
-                .into_iter()
-                .map(|sticker| format!("🐾 {} {}", sticker.file_id, sticker.file_unique_id))
-                .collect::<Vec<String>>()
-                .join("\n");
-            Ok(message)
+        Command::Debug(arg) => {
+            if arg.is_empty() {
+                // Show the current sticker set
+                let get_params = GetStickerSetParams::builder().name("meme_by_SenseMemeBot").build();
+                let stickerset = bot.get_sticker_set(&get_params).await?.result;
+                let stickers = stickerset.stickers;
+                let message = stickers
+                    .into_iter()
+                    .map(|sticker| format!("🐾 {} {}", sticker.file_id, sticker.file_unique_id))
+                    .collect::<Vec<String>>()
+                    .join("\n");
+                Ok(message)
+            } else {
+                // Send given sticker
+                let sticker = FileUpload::String(arg);
+                let send_params = SendStickerParams::builder()
+                    .chat_id(chat_id)
+                    .sticker(sticker)
+                    .build();
+                bot.send_sticker(&send_params).await?;
+                Ok("🐾 Sent the sticker!".to_string())
+            }
         }
     };
     let message = match result {
