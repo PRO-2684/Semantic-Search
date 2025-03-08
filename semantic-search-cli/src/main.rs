@@ -24,7 +24,7 @@ async fn main() -> Result<()> {
     let config = parse_config(Path::new(".sense/config.toml"))
         .with_context(|| "Failed to parse config file, consider creating one")?;
 
-    execute(args.command, config).await?;
+    Box::pin(execute(args.command, config)).await?;
 
     Ok(())
 }

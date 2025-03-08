@@ -14,6 +14,7 @@ pub struct Serve {
 }
 
 impl Serve {
+    #[allow(clippy::unused_async, reason = "Not implemented yet")]
     pub async fn execute(&self, config: Config) -> Result<()> {
         // ...
         Ok(())

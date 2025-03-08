@@ -177,6 +177,7 @@ mod tests {
     const EMBEDDING_CHUNK: [u8; 4] = [0x85, 0xEB, 0x91, 0x3F];
 
     #[test]
+    #[allow(clippy::float_cmp, reason = "They should be equal exactly")]
     fn embedding_from_bytes() {
         let mut bytes = [0; 1024 * 4];
         bytes.chunks_exact_mut(4).for_each(|chunk| {

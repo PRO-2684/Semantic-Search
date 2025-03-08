@@ -22,7 +22,7 @@ impl Search {
         let mut db = Database::open(".sense/index.db3", true)
             .await
             .with_context(|| "Failed to open database, consider indexing first.")?;
-        let api = ApiClient::new(config.api.key, config.api.model)?;
+        let api = ApiClient::new(&config.api.key, config.api.model)?;
         let embedding: Embedding = api.embed(&self.query).await?.into();
         let results = db.search(self.num_results, &embedding).await?;
 

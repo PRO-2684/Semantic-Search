@@ -40,7 +40,7 @@ impl Telegram {
         let mut db = Database::open(".sense/index.db3", false)
             .await
             .with_context(|| "Failed to open database, consider indexing first.")?;
-        let api = ApiClient::new(config.api.key, config.api.model)?;
+        let api = ApiClient::new(&config.api.key, config.api.model)?;
 
         let BotConfig { token, .. } = &config.bot;
         if token.is_empty() {

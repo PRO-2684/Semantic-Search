@@ -2,7 +2,8 @@
 //!
 //! Possible errors.
 
-use reqwest::Error as ReqwestError;
+use base64::DecodeError;
+use reqwest::{header::InvalidHeaderValue, Error as ReqwestError};
 use std::array::TryFromSliceError;
 use thiserror::Error;
 
@@ -21,6 +22,12 @@ pub enum SenseError {
         /// Source of the error.
         source: ReqwestError,
     },
+    /// Invalid header value.
+    #[error("Invalid header value")]
+    InvalidHeaderValue,
+    /// Base64 decoding failed.
+    #[error("Base64 decoding failed")]
+    Base64DecodingFailed,
 }
 
 impl From<ReqwestError> for SenseError {
@@ -48,5 +55,19 @@ impl From<Vec<f32>> for SenseError {
     /// Error when casting `Vec<f32>` to array (length mismatch).
     fn from(_: Vec<f32>) -> Self {
         Self::DimensionMismatch
+    }
+}
+
+impl From<InvalidHeaderValue> for SenseError {
+    /// Error when header value is invalid.
+    fn from(_: InvalidHeaderValue) -> Self {
+        Self::InvalidHeaderValue
+    }
+}
+
+impl From<DecodeError> for SenseError {
+    /// Error when base64 decoding fails.
+    fn from(_: DecodeError) -> Self {
+        Self::Base64DecodingFailed
     }
 }

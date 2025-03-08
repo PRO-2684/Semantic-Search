@@ -33,11 +33,10 @@ pub async fn inline_handler(
             "Keep paw-typing to sniff out the purr-fect meme... 😸",
         ))
         .await?;
-        Ok(())
     } else {
-        handle_query(&bot, &me, query_str, query_id, db, &api, config).await?;
-        Ok(())
+        handle_query(bot, me, query_str, query_id, db, api, config).await?;
     }
+    Ok(())
 }
 
 /// Handles non-empty inline queries.

@@ -132,7 +132,7 @@ pub async fn init_stickers(
 
 /// Check if the sticker set exists, returning the sticker set if found.
 async fn get_sticker_set(bot: &Bot, get_params: &GetStickerSetParams) -> Option<StickerSet> {
-    match bot.get_sticker_set(&get_params).await {
+    match bot.get_sticker_set(get_params).await {
         Ok(result) => Some(result.result),
         Err(error) => {
             match error {
@@ -154,7 +154,7 @@ async fn get_sticker_set(bot: &Bot, get_params: &GetStickerSetParams) -> Option<
 /// Upload a sticker file.
 async fn upload_sticker_file(bot: &Bot, path: &str, user_id: u64) -> Result<String, String> {
     // Image conversion
-    let (image, is_temp) = match convert_if_necessary(&path) {
+    let (image, is_temp) = match convert_if_necessary(path) {
         Ok((image, is_temp)) => (image, is_temp),
         Err(e) => {
             return Err(format!("Failed to convert image: {e} for {path}"));
@@ -253,10 +253,10 @@ fn convert_if_necessary(path: &str) -> ImageResult<(PathBuf, bool)> {
         .to_string_lossy()
         .to_lowercase();
     if !ACCEPTED_EXTENSIONS.contains(&ext.as_str()) {
-        let format = match ImageFormat::from_extension(&ext) {
-            Some(format) => ImageFormatHint::Exact(format),
-            None => ImageFormatHint::Name(ext.to_string()),
-        };
+        let format = ImageFormat::from_extension(&ext)
+            .map_or(ImageFormatHint::Name(ext), |format| {
+                ImageFormatHint::Exact(format)
+            });
         let kind = UnsupportedErrorKind::Format(format.clone());
         return Err(ImageError::Unsupported(
             UnsupportedError::from_format_and_kind(format, kind),

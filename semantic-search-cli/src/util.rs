@@ -110,6 +110,7 @@ pub struct Database {
 
 impl Database {
     /// Open a database connection, creating if not exists.
+    #[allow(clippy::future_not_send, reason = "Should be `Send` if `T: Send`")]
     pub async fn open<T: AsRef<Path>>(path: T, read_only: bool) -> SqlResult<Self> {
         let path = path.as_ref();
         let exists = path.exists();
@@ -165,7 +166,7 @@ impl Database {
             .bind(&record.file_path)
             .bind(&record.file_hash)
             .bind(&record.label)
-            .bind(&&bytes[..])
+            .bind(&bytes[..])
             .execute(&mut self.conn)
             .await?;
 
@@ -179,7 +180,7 @@ impl Database {
         );
         let query = sqlx::query_as::<_, Record>(query.as_str());
         let result = query
-            .bind(&file_path)
+            .bind(file_path)
             .fetch_optional(&mut self.conn)
             .await?;
 
@@ -215,12 +216,13 @@ impl Database {
     async fn delete(&mut self, file_path: &str) -> SqlResult<bool> {
         let query = format!("DELETE FROM {TABLE_NAME} WHERE file_path = ?");
         let query = sqlx::query(query.as_str());
-        let result = query.bind(&file_path).execute(&mut self.conn).await?;
+        let result = query.bind(file_path).execute(&mut self.conn).await?;
 
         Ok(result.rows_affected() == 1)
     }
 
     /// Iterate over all records in the database. (path only)
+    #[allow(clippy::iter_not_returning_iterator, reason = "It returns a stream, also called async iterator")]
     pub fn iter(&mut self) -> BoxStream<'_, SqlResult<String>> {
         let query = sqlx::query(queries::QUERY_PATH);
         let result = query
@@ -265,6 +267,7 @@ impl Database {
     }
 
     /// Clean up the database, removing records that no longer exist on disk.
+    #[allow(clippy::future_not_send, reason = "Should be `Send` if `T: Send`")]
     pub async fn clean<T>(&mut self, ref_path: T) -> SqlResult<usize>
     where
         T: AsRef<Path>,
@@ -275,10 +278,10 @@ impl Database {
             .filter_map(|path| async {
                 let path = path.ok()?;
                 let full_path = ref_path.join(&path);
-                if !full_path.exists() {
-                    Some(path)
-                } else {
+                if full_path.exists() {
                     None
+                } else {
+                    Some(path)
                 }
             })
             .collect::<Vec<_>>()
@@ -352,7 +355,7 @@ mod tests {
     #[test]
     fn hash_license() {
         // Hash `LICENSE` file, which should be stable enough
-        let hash = hash_file(&Path::new("LICENSE")).unwrap();
+        let hash = hash_file(Path::new("LICENSE")).unwrap();
 
         assert_eq!(
             hash,

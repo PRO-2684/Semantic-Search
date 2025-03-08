@@ -95,16 +95,16 @@ pub async fn message_handler(
     };
     let Some(text) = &msg.text else {
         // Ignore non-text messages.
-        answer_fallback(&bot, &msg).await?;
+        answer_fallback(bot, &msg).await?;
         return Ok(());
     };
-    let Some(cmd) = Command::parse(text, &username) else {
+    let Some(cmd) = Command::parse(text, username) else {
         // Cannot parse the command
-        answer_fallback(&bot, &msg).await?;
+        answer_fallback(bot, &msg).await?;
         return Ok(());
     };
     info!("Received valid command: `{text}`, parsed as: {cmd:?}");
-    answer_command(&bot, &msg, cmd, db, api, config).await?;
+    answer_command(bot, &msg, cmd, db, api, config).await?;
     Ok(())
 }
 
@@ -120,7 +120,7 @@ async fn answer_command(
     let chat_id = msg.chat.id;
     let result = match cmd {
         Command::Help => {
-            Ok(Command::description().to_string())
+            Ok(Command::description())
         }
         Command::Search(query) => {
             answer_search(api, &query, db, config).await
@@ -150,7 +150,7 @@ async fn answer_command(
         }
     };
 
-    reply(&bot, &msg, chat_id.into(), &message).await
+    reply(bot, msg, chat_id.into(), &message).await
 }
 
 /// Answers the search command.
@@ -192,10 +192,10 @@ async fn answer_search(
 /// Fallback message.
 async fn answer_fallback(bot: &Bot, msg: &Message) -> BotResult<()> {
     // Choose a pseudo-random message from the fallback messages.
-    let idx = msg.message_id.abs() as usize % FALLBACK_MESSAGES.len();
+    let idx = msg.message_id.unsigned_abs() as usize % FALLBACK_MESSAGES.len();
     let message = FALLBACK_MESSAGES[idx];
 
-    reply(&bot, &msg, msg.chat.id.into(), message).await
+    reply(bot, msg, msg.chat.id.into(), message).await
 }
 
 /// Reply to the message.

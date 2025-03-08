@@ -6,6 +6,7 @@
 
 #![deny(missing_docs)]
 #![warn(clippy::all, clippy::nursery, clippy::pedantic, clippy::cargo)]
+#![allow(clippy::multiple_crate_versions, reason = "Dependencies")]
 
 mod api;
 pub mod embedding;

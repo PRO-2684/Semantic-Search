@@ -3,7 +3,8 @@
 //! This library provides basic functionality for the semantic search CLI.
 
 #![deny(missing_docs)]
-#![warn(clippy::all, clippy::nursery, clippy::pedantic, clippy::cargo)]
+#![warn(clippy::all, clippy::nursery, clippy::cargo)]
+#![allow(clippy::multiple_crate_versions, reason = "Dependencies")]
 
 pub mod commands;
 mod config;
@@ -29,6 +30,7 @@ pub struct Args {
 /// # Errors
 ///
 /// Returns an [IO error](std::io::Error) if reading or writing fails.
+#[allow(clippy::future_not_send, reason = "Main function")]
 pub async fn execute(command: Command, config: Config) -> Result<()> {
     debug!("Executing command: {:?}", command);
     debug!("Config: {:?}", config);

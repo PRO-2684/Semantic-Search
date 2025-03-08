@@ -102,11 +102,11 @@ where
 /// Default values for the configuration.
 mod defaults {
     /// Default port for the server.
-    pub fn server_port() -> u16 {
+    pub const fn server_port() -> u16 {
         8080
     }
     /// Number of results to return.
-    pub fn num_results() -> usize {
+    pub const fn num_results() -> usize {
         8
     }
     /// Sticker set id for the bot.
@@ -199,19 +199,19 @@ mod tests {
     #[test]
     #[should_panic(expected = "missing field `api`")]
     fn parse_config_fail_1() {
-        let content = r#"
+        let content = r"
             [server]
             port = 8080
-        "#;
+        ";
         test(content, 8080, "test_key", Model::BgeLargeZhV1_5, "");
     }
 
     #[test]
     #[should_panic(expected = "missing field `key`")]
     fn parse_config_fail_2() {
-        let content = r#"
+        let content = r"
             [api]
-        "#;
+        ";
         test(content, 8080, "test_key", Model::BgeLargeZhV1_5, "");
     }
 }

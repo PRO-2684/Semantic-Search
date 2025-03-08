@@ -1,6 +1,8 @@
-//! # SiliconFlow module
+//! # Silicon Flow module
 //!
-//! This module contains logic for the SiliconFlow API.
+//! This module contains logic for the Silicon Flow API.
+
+use std::fmt::Display;
 
 use super::{embedding::EmbeddingBytes, SenseError};
 use base64::{engine::general_purpose::STANDARD as DECODER, Engine as _};
@@ -35,12 +37,9 @@ impl Default for Model {
     }
 }
 
-impl ToString for Model {
-    fn to_string(&self) -> String {
-        serde_json::to_string(self)
-            .unwrap()
-            .trim_matches('"')
-            .to_string()
+impl Display for Model {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", serde_json::to_string(self).unwrap().trim_matches('"'))
     }
 }
 
@@ -59,7 +58,7 @@ fn validate_api_key(key: &str) -> Result<(), SenseError> {
 
 // == Request and response definitions ==
 
-/// The request body for the SiliconFlow API.
+/// The request body for the Silicon Flow API.
 #[derive(Serialize)]
 struct RequestBody<'a> {
     /// The model to use.
@@ -86,6 +85,7 @@ struct Data {
 /// ResponseBody.usage: The usage information for the request.
 #[derive(Deserialize)]
 #[allow(dead_code, reason = "For deserialization only")]
+#[allow(clippy::struct_field_names, reason = "Consistency with API response")]
 struct Usage {
     /// The number of tokens used by the prompt.
     prompt_tokens: u32,
@@ -95,7 +95,7 @@ struct Usage {
     total_tokens: u32,
 }
 
-/// The response body for the SiliconFlow API.
+/// The response body for the Silicon Flow API.
 #[derive(Deserialize)]
 struct ResponseBody {
     /// The name of the model used to generate the embedding.
@@ -109,7 +109,7 @@ struct ResponseBody {
 
 // == API client ==
 
-/// A client for the SiliconFlow API.
+/// A client for the Silicon Flow API.
 #[derive(Clone)]
 pub struct ApiClient {
     /// The model to use.
@@ -122,10 +122,15 @@ pub struct ApiClient {
 
 impl ApiClient {
     /// Create a new API client.
-    pub fn new(key: String, model: Model) -> Result<Self, SenseError> {
-        validate_api_key(&key)?;
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the API key is malformed or the HTTP client cannot be created.
+    #[allow(clippy::missing_panics_doc, reason = "URL is hardcoded")]
+    pub fn new(key: &str, model: Model) -> Result<Self, SenseError> {
+        validate_api_key(key)?;
         let mut headers = HeaderMap::new();
-        headers.insert("Authorization", format!("Bearer {key}").parse().unwrap());
+        headers.insert("Authorization", format!("Bearer {key}").parse()?);
         let client = ClientBuilder::new().default_headers(headers).build()?;
 
         Ok(Self {
@@ -136,6 +141,14 @@ impl ApiClient {
     }
 
     /// Embed a text.
+    ///
+    /// # Errors
+    ///
+    /// Returns:
+    /// 
+    /// - [`SenseError::RequestFailed`] if the request fails
+    /// - [`SenseError::Base64DecodingFailed`] if base64 decoding fails
+    /// - [`SenseError::DimensionMismatch`] if the embedding is not 1024-dimensional.
     pub async fn embed(&self, text: &str) -> Result<EmbeddingBytes, SenseError> {
         let request_body = RequestBody {
             model: &self.model,
@@ -145,11 +158,10 @@ impl ApiClient {
         let request = self.client.post(self.endpoint.clone()).json(&request_body);
 
         let response: ResponseBody = request.send().await?.json().await?;
-        assert_eq!(response.model, self.model);
+        debug_assert_eq!(response.model, self.model);
 
         let embedding = DECODER
-            .decode(response.data[0].embedding.as_bytes())
-            .unwrap();
+            .decode(response.data[0].embedding.as_bytes())?;
         Ok(embedding.try_into()?)
     }
 }
@@ -168,7 +180,7 @@ mod tests {
     #[test]
     fn test_api_key_malformed() {
         let malformed = &KEY[..KEY.len() - 1];
-        let err = validate_api_key(&malformed).unwrap_err();
+        let err = validate_api_key(malformed).unwrap_err();
         assert!(matches!(err, SenseError::MalformedApiKey));
     }
 
@@ -177,7 +189,7 @@ mod tests {
     async fn test_embed() {
         // Read the API key from the environment
         let key = std::env::var("SILICONFLOW_API_KEY").unwrap();
-        let client = ApiClient::new(key, Model::BgeLargeZhV1_5).unwrap();
+        let client = ApiClient::new(&key, Model::BgeLargeZhV1_5).unwrap();
         let embedding = client.embed("Hello, world!").await;
         let _ = embedding.unwrap();
     }
