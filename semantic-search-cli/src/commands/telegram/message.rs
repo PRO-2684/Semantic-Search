@@ -3,8 +3,7 @@
 use super::{ApiClient, Database, BotConfig};
 use doc_for::{doc, doc_impl};
 use frankenstein::{
-    client_reqwest::Bot, AsyncTelegramApi, ChatId, Error, Message, ReplyParameters,
-    SendMessageParams, User,
+    client_reqwest::Bot, AsyncTelegramApi, ChatId, Error, GetStickerSetParams, Message, ReplyParameters, SendMessageParams, User
 };
 use log::info;
 use semantic_search::Embedding;
@@ -31,22 +30,25 @@ pub enum Command {
     Search(String),
     /// learn how to summon this kitty anywhere with a flick of your paw.
     Inline,
+    /// debug command
+    Debug,
 }
 
 impl Command {
     fn description() -> String {
         format!(
-            "{}\n{}\n{}\n{}",
+            "{}\n/help - {}\n/search - {}\n/inline - {}\n/debug - {}",
             doc!(Command),
             doc!(Command, Help),
             doc!(Command, Search),
-            doc!(Command, Inline)
+            doc!(Command, Inline),
+            doc!(Command, Debug),
         )
     }
 
     fn parse(text: &str, username: &str) -> Option<Self> {
         let text = text.trim();
-        let (command, arg) = text.split_once(' ')?;
+        let (command, arg) = text.split_once(' ').unwrap_or((text, ""));
         let command = command.to_lowercase();
 
         // Two possible command formats:
@@ -73,6 +75,7 @@ impl Command {
             "help" => Some(Self::Help),
             "search" => Some(Self::Search(arg.to_string())),
             "inline" => Some(Self::Inline),
+            "debug" => Some(Self::Debug),
             _ => None,
         }
     }
@@ -121,10 +124,21 @@ async fn answer_command(
             Ok(Command::description().to_string())
         }
         Command::Search(query) => {
-            answer_search(&bot, chat_id.into(), api, &query, db, config).await
+            answer_search(api, &query, db, config).await
         }
         Command::Inline => {
             Ok("🐾 Just mention me in any chat, followed by your query, and I'll pounce into action to fetch the purr-fect meme for you! 😼✨".to_string())
+        }
+        Command::Debug => {
+            let get_params = GetStickerSetParams::builder().name("meme_by_SenseMemeBot").build();
+            let stickerset = bot.get_sticker_set(&get_params).await?.result;
+            let stickers = stickerset.stickers;
+            let message = stickers
+                .into_iter()
+                .map(|sticker| format!("🐾 {} {}", sticker.file_id, sticker.file_unique_id))
+                .collect::<Vec<String>>()
+                .join("\n");
+            Ok(message)
         }
     };
     let message = match result {
@@ -139,8 +153,6 @@ async fn answer_command(
 
 /// Answers the search command.
 async fn answer_search(
-    bot: &Bot,
-    chat_id: ChatId,
     api: &ApiClient,
     query: &str,
     db: Arc<Mutex<Database>>,
