@@ -110,4 +110,6 @@ jobs:
       with:
         toolchain: stable
     - name: Publish to crates.io
-      run: cargo publish --token ${{ secrets.CARGO_TOKEN }}
+      run: |
+        cargo publish --token ${{ secrets.CARGO_TOKEN }} -p semantic-search
+        cargo publish --token ${{ secrets.CARGO_TOKEN }} -p semantic-search-cli
