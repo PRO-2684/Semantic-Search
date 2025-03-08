@@ -1,5 +1,5 @@
 # Get the current version
-VERSION=$(rg --no-filename '^version = "(.*)"' Cargo.toml --replace '$1')
+VERSION=$(rg --no-filename '^version = "(.*)"' semantic-search/Cargo.toml --replace '$1')
 
 # Increment the patch version
 MAJOR=$(echo $VERSION | cut -d. -f1)
@@ -14,8 +14,7 @@ sed -i "s/^version = \".*\"/version = \"$VERSION\"/" semantic-search-cli/Cargo.t
 cargo generate-lockfile
 
 # Commit the change
-git add Cargo.toml
-git add Cargo.lock
+git add semantic-search/Cargo.toml semantic-search-cli/Cargo.toml
 git commit -S -m "Bump version to v$VERSION"
 
 # Tag
