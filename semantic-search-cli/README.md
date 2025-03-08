@@ -110,6 +110,6 @@ $ curl -X POST http://localhost:8080/search -d '{"query": "cute cat", "limit": 5
 - [ ] Reducing clone
 - [ ] Enhance Telegram bot
     - [ ] Graceful shutdown
-    - [ ] Multi-threading
+    - [x] Parallel processing
     - [ ] Using chunks to upload stickers
-- [ ] Auto release binary
+- [x] Auto release binary
