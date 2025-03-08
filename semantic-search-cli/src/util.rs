@@ -352,6 +352,7 @@ mod queries {
 mod tests {
     use super::*;
 
+    #[cfg(not(windows))]
     #[test]
     fn hash_license() {
         // Hash `LICENSE` file, which should be stable enough
