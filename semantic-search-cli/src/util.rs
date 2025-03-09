@@ -339,6 +339,11 @@ impl Database {
 
         Ok(result.rows_affected() == 1)
     }
+
+    /// Close the database connection.
+    pub async fn close(self) -> SqlResult<()> {
+        self.conn.close().await
+    }
 }
 
 /// Used query instructions.

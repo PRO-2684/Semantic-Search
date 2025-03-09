@@ -109,7 +109,9 @@ $ curl -X POST http://localhost:8080/search -d '{"query": "cute cat", "limit": 5
     - [ ] Error logging
 - [ ] Reducing clone
 - [ ] Enhance Telegram bot
+    - [ ] Support `@` in commands
     - [ ] Graceful shutdown
     - [x] Parallel processing
-    - [ ] Using chunks to upload stickers
+    - [x] Empty sticker set every 120 stickers
 - [x] Auto release binary
+- [ ] Improve indexing performance

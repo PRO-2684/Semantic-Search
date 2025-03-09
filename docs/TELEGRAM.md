@@ -10,7 +10,11 @@
 
 TBD
 
-Note that for best results, all files must be of .JP(E)G, .PNG or .WEBP format. Also, no more than 120 new images per initialization.
+Note that for best results, all files must be of .JP(E)G, .PNG or .WEBP format. The program would error on images with incorrect extensions. You can use [`fix-ext.py`](../scripts/fix-ext.py) to fix extensions automatically:
+
+```bash
+python scripts/fix-ext.py /path/to/images/
+```
 
 ## Configuration
 

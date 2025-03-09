@@ -49,8 +49,16 @@ impl Telegram {
 
         // Upload stickers
         info!("Initializing stickers...");
-        common::init_stickers(&bot, &me, &mut db, &config.bot).await?;
-        info!("Initialized stickers, start handling updates...");
+        // common::init_stickers(&bot, &me, &mut db, &config.bot).await?;
+        let init_result = common::init_stickers(&bot, &me, &mut db, &config.bot).await;
+        match init_result {
+            Ok(_) => info!("Initialized stickers, start handling updates..."),
+            Err(e) => {
+                error!("Failed to initialize stickers: {e}");
+                db.close().await?;
+                anyhow::bail!("Failed to initialize stickers: {e}");
+            },
+        }
 
         // Leaking `api`, `bot`, `me` and `bot_config` here
         let bot = Box::leak(Box::new(bot));

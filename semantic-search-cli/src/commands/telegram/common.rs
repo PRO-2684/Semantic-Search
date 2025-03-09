@@ -22,10 +22,12 @@ use image::{
     imageops::FilterType,
     GenericImageView, ImageError, ImageFormat, ImageResult,
 };
-use log::{debug, error, warn};
+use log::{debug, error, info, warn};
 
 use super::{BotConfig, BotResult};
 use crate::util::Database;
+
+const STICKER_SET_LIMIT: usize = 120;
 
 /// Initialize stickers.
 pub async fn init_stickers(
@@ -43,7 +45,7 @@ pub async fn init_stickers(
         .build();
 
     // Check if the sticker set exists
-    let mut paths_iter = db.iter_file_ids().filter_map(|row| {
+    let paths: Vec<_> = db.iter_file_ids().filter_map(|row| {
         future::ready(
             // Only yields path on Ok variants with missing file ids
             match row {
@@ -58,9 +60,10 @@ pub async fn init_stickers(
                 }
             },
         )
-    });
+    }).collect().await;
+    let mut paths = paths.into_iter();
     let sticker_set = get_sticker_set(bot, &get_params).await;
-    let mut collected_paths = Vec::new();
+    let mut success_paths = Vec::new();
 
     if let Some(sticker_set) = sticker_set {
         // Empty the sticker set
@@ -69,23 +72,19 @@ pub async fn init_stickers(
     } else {
         // If the sticker set does not exist, create it with one sticker
         debug!("Sticker set not found: {sticker_set_name}, creating...");
-        let Some(path) = paths_iter.next().await else {
+        let Some(path) = paths.next() else {
             anyhow::bail!("No stickers found in the database.");
         };
-        let Ok(file_id) = upload_sticker_file(bot, &path, me.id).await else {
-            anyhow::bail!("Failed to upload sticker file: {path}");
-        };
+        let file_id = upload_sticker_file(bot, &path, me.id).await?;
         create_sticker_set(bot, &sticker_set_name, me.id, &vec![&file_id]).await?;
-        collected_paths.push(path);
+        success_paths.push(path);
     }
 
     // Upload the rest of the stickers
-    debug!("Uploading stickers...");
-    while let Some(path) = paths_iter.next().await {
+    info!("Uploading stickers...");
+    while let Some(path) = paths.next() {
         // NOTE: This shouldn't be done in parallel, as the stickers must be uploaded in order
-        let Ok(file_id) = upload_sticker_file(bot, &path, me.id).await else {
-            anyhow::bail!("Failed to upload sticker file: {path}");
-        };
+        let file_id = upload_sticker_file(bot, &path, me.id).await?;
         let add_params = AddStickerToSetParams::builder()
             .user_id(me.id)
             .name(&sticker_set_name)
@@ -93,37 +92,20 @@ pub async fn init_stickers(
             .build();
         let result = bot.add_sticker_to_set(&add_params).await;
         if let Err(error) = result {
-            error!("Failed to add sticker {path} to set: {error}");
+            error!("[BATCH {}/{}] ! {path}: {error}", success_paths.len() + 1, STICKER_SET_LIMIT);
         } else {
-            debug!("Added sticker {path} to set");
-            collected_paths.push(path);
-        }
-    }
-    drop(paths_iter);
-
-    // Get file ids using GetStickerSet
-    let sticker_set = bot.get_sticker_set(&get_params).await?.result;
-    // Take the last `paths.len()` stickers
-    let skip = sticker_set.stickers.len() - collected_paths.len();
-    let file_ids = sticker_set
-        .stickers
-        .iter()
-        .skip(skip)
-        .map(|sticker| &sticker.file_id);
-
-    // Update database
-    debug!("Updating database...");
-    for (path, file_id) in collected_paths.iter().zip(file_ids) {
-        match db.set_file_id(path, file_id).await {
-            Ok(true) => debug!("Updated database with file id for {path}"),
-            Ok(false) => warn!("Failed to update database: row affected mismatch for {path}"),
-            Err(e) => warn!("Failed to update database: {e} for {path}"),
+            info!("[BATCH {}/{}] + {path}", success_paths.len() + 1, STICKER_SET_LIMIT);
+            success_paths.push(path);
+            // Update database and empty the sticker set if the limit is reached
+            if success_paths.len() == STICKER_SET_LIMIT {
+                commit_changes(bot, db, &get_params, &success_paths).await?;
+                success_paths.clear();
+            }
         }
     }
 
-    // Empty the sticker set
-    debug!("Emptying sticker set...");
-    empty_sticker_set(bot, sticker_set).await?;
+    commit_changes(bot, db, &get_params, &success_paths).await?;
+    success_paths.clear();
 
     Ok(())
 }
@@ -150,12 +132,12 @@ async fn get_sticker_set(bot: &Bot, get_params: &GetStickerSetParams) -> Option<
 }
 
 /// Upload a sticker file.
-async fn upload_sticker_file(bot: &Bot, path: &str, user_id: u64) -> Result<String, String> {
+async fn upload_sticker_file(bot: &Bot, path: &str, user_id: u64) -> Result<String, anyhow::Error> {
     // Image conversion
     let (image, is_temp) = match convert_if_necessary(path) {
         Ok((image, is_temp)) => (image, is_temp),
         Err(e) => {
-            return Err(format!("Failed to convert image: {e} for {path}"));
+            anyhow::bail!("Failed to convert image: {e} for {path}");
         }
     };
 
@@ -171,13 +153,41 @@ async fn upload_sticker_file(bot: &Bot, path: &str, user_id: u64) -> Result<Stri
         std::fs::remove_file(&image).unwrap();
     }
 
-    if let Ok(uploaded) = uploaded {
-        let file_id = uploaded.result.file_id;
-        debug!("Uploaded sticker file {path} with id {file_id}");
-        Ok(file_id)
-    } else {
-        Err(format!("Failed to upload sticker file: {path}"))
+    match uploaded {
+        Ok(uploaded) => {
+            let file_id = uploaded.result.file_id;
+            debug!("Uploaded sticker file {path} with id {file_id}");
+            Ok(file_id)
+        }
+        Err(error) => {
+            anyhow::bail!("Failed to upload sticker file {path}: {error}");
+        }
     }
+}
+
+/// Commit the changes to database and empty the sticker set.
+async fn commit_changes(bot: &Bot, db: &mut Database, get_params: &GetStickerSetParams, success_paths: &Vec<String>) -> anyhow::Result<()> {
+    if let Some(sticker_set) = get_sticker_set(bot, &get_params).await {
+        info!("Updating database...");
+        // Take the last `success_paths.len()` stickers
+        let start = sticker_set.stickers.len() - success_paths.len();
+        let stickers = &sticker_set.stickers[start..];
+        for (path, sticker) in success_paths.iter().zip(stickers) {
+            match db.set_file_id(path, &sticker.file_id).await {
+                Ok(true) => debug!("Updated database with file id for {path}"),
+                Ok(false) => {
+                    warn!("Failed to update database: row affected mismatch for {path}")
+                }
+                Err(e) => warn!("Failed to update database: {e} for {path}"),
+            }
+        }
+        info!("Emptying sticker set...");
+        empty_sticker_set(bot, sticker_set).await?;
+    } else {
+        warn!("Cannot empty sticker set: not found");
+    }
+
+    Ok(())
 }
 
 /// Empty the sticker set.
@@ -200,6 +210,7 @@ pub async fn empty_sticker_set(bot: &Bot, sticker_set: StickerSet) -> BotResult<
     for (id, result) in file_ids.iter().zip(results) {
         if let Err(error) = result {
             error!("Failed to delete sticker {id} from set: {error}");
+            return Err(error);
         } else {
             debug!("Deleted sticker {id} from set");
         }
