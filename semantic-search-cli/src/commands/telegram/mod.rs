@@ -46,6 +46,7 @@ impl Telegram {
         }
         let bot = Bot::new(token); // TODO: throttle
         let me = bot.get_me().await?.result;
+        info!("Bot username: {:?}", me.username);
 
         // Upload stickers
         info!("Initializing stickers...");

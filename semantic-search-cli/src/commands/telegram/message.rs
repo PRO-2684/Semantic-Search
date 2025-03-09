@@ -47,29 +47,27 @@ impl Command {
     fn parse(text: &str, username: &str) -> Option<Self> {
         let text = text.trim();
         let (command, arg) = text.split_once(' ').unwrap_or((text, ""));
-        let command = command.to_lowercase();
 
         // Two possible command formats:
         // 1. /command <arg>
         // 2. /command@bot_username <arg>
 
-        // Trim the command prefix
+        // Trim the leading slash
         let slash = command.starts_with('/');
         if !slash {
             return None;
         }
         let command = &command[1..];
 
-        // Trim the bot username if present
-        let at = format!("@{username}");
-        let at_bot = command.ends_with(&at);
-        let command = if at_bot {
-            &command[..command.len() - at.len()]
-        } else {
-            command
-        };
+        // Split out the mention and check if it's the bot
+        let (command, mention) = command.split_once('@').unwrap_or((command, ""));
+        if !mention.is_empty() && mention != username {
+            return None;
+        }
 
-        match command {
+        // Lowercase and match the command
+        let command = command.to_lowercase();
+        match command.as_str() {
             "help" => Some(Self::Help),
             "search" => Some(Self::Search(arg.to_string())),
             "inline" => Some(Self::Inline),
@@ -92,20 +90,13 @@ pub async fn message_handler(
         log::error!("Bot username not found.");
         return Ok(());
     };
-    let is_pm = matches!(msg.chat.type_field, ChatType::Private);
     let Some(text) = &msg.text else {
         // Ignore non-text messages.
-        if is_pm {
-            answer_fallback(bot, &msg).await?;
-        }
-        return Ok(());
+        return answer_fallback(bot, &msg).await;
     };
     let Some(cmd) = Command::parse(text, username) else {
         // Cannot parse the command
-        if is_pm {
-            answer_fallback(bot, &msg).await?;
-        }
-        return Ok(());
+        return answer_fallback(bot, &msg).await;
     };
     info!("Received valid command: `{text}`, parsed as: {cmd:?}");
     answer_command(bot, &msg, cmd, db, api, config).await?;
@@ -195,6 +186,10 @@ async fn answer_search(
 
 /// Fallback message.
 async fn answer_fallback(bot: &Bot, msg: &Message) -> BotResult<()> {
+    // Only answer fallback if the message is a private message.
+    if !matches!(msg.chat.type_field, ChatType::Private) {
+        return Ok(());
+    }
     // Choose a pseudo-random message from the fallback messages.
     let idx = msg.message_id.unsigned_abs() as usize % FALLBACK_MESSAGES.len();
     let message = FALLBACK_MESSAGES[idx];
