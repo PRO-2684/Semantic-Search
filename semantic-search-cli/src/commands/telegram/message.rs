@@ -3,8 +3,7 @@
 use super::{ApiClient, BotConfig, BotResult, Database};
 use doc_for::{doc, doc_impl};
 use frankenstein::{
-    client_reqwest::Bot, AsyncTelegramApi, ChatId, FileUpload, Message, ReplyParameters,
-    SendMessageParams, SendStickerParams, User,
+    client_reqwest::Bot, AsyncTelegramApi, ChatId, ChatType, FileUpload, Message, ReplyParameters, SendMessageParams, SendStickerParams, User
 };
 use log::info;
 use semantic_search::Embedding;
@@ -93,14 +92,19 @@ pub async fn message_handler(
         log::error!("Bot username not found.");
         return Ok(());
     };
+    let is_pm = matches!(msg.chat.type_field, ChatType::Private);
     let Some(text) = &msg.text else {
         // Ignore non-text messages.
-        answer_fallback(bot, &msg).await?;
+        if is_pm {
+            answer_fallback(bot, &msg).await?;
+        }
         return Ok(());
     };
     let Some(cmd) = Command::parse(text, username) else {
         // Cannot parse the command
-        answer_fallback(bot, &msg).await?;
+        if is_pm {
+            answer_fallback(bot, &msg).await?;
+        }
         return Ok(());
     };
     info!("Received valid command: `{text}`, parsed as: {cmd:?}");
