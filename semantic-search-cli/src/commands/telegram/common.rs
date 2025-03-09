@@ -9,13 +9,12 @@
 // Sending stickers:
 // SendSticker or InlineQueryResultCachedSticker
 
-use std::{path::PathBuf, sync::Arc};
+use std::path::PathBuf;
 
 use frankenstein::{
     client_reqwest::Bot, AddStickerToSetParams, AsyncTelegramApi, CreateNewStickerSetParams,
     DeleteStickerFromSetParams, Error, FileUpload, GetStickerSetParams, InputFile, InputSticker,
-    StickerFormat, StickerSet, StickerType, UploadStickerFileParams,
-    UploadStickerFileParamsBuilder, User,
+    StickerFormat, StickerSet, StickerType, UploadStickerFileParams, User,
 };
 use futures_util::{future, StreamExt};
 use image::{
@@ -24,7 +23,6 @@ use image::{
     GenericImageView, ImageError, ImageFormat, ImageResult,
 };
 use log::{debug, error, warn};
-use tokio::sync::Mutex;
 
 use super::{BotConfig, BotResult};
 use crate::util::Database;

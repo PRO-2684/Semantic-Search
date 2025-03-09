@@ -39,7 +39,11 @@ impl Default for Model {
 
 impl Display for Model {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", serde_json::to_string(self).unwrap().trim_matches('"'))
+        write!(
+            f,
+            "{}",
+            serde_json::to_string(self).unwrap().trim_matches('"')
+        )
     }
 }
 
@@ -145,7 +149,7 @@ impl ApiClient {
     /// # Errors
     ///
     /// Returns:
-    /// 
+    ///
     /// - [`SenseError::RequestFailed`] if the request fails
     /// - [`SenseError::Base64DecodingFailed`] if base64 decoding fails
     /// - [`SenseError::DimensionMismatch`] if the embedding is not 1024-dimensional.
@@ -160,8 +164,7 @@ impl ApiClient {
         let response: ResponseBody = request.send().await?.json().await?;
         debug_assert_eq!(response.model, self.model);
 
-        let embedding = DECODER
-            .decode(response.data[0].embedding.as_bytes())?;
+        let embedding = DECODER.decode(response.data[0].embedding.as_bytes())?;
         Ok(embedding.try_into()?)
     }
 }

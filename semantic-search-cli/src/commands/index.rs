@@ -100,8 +100,7 @@ impl Index {
                     let label = path.file_stem().unwrap().to_string_lossy();
                     (label.to_string(), api.embed(&relative).await?.into())
                 } else {
-                    let label =
-                        prompt(&format!("Label for {relative} (empty to use filename): "))?;
+                    let label = prompt(&format!("Label for {relative} (empty to use filename): "))?;
                     if label.is_empty() {
                         // Use filename as label
                         let label = path.file_stem().unwrap().to_string_lossy();

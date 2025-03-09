@@ -179,10 +179,7 @@ impl Database {
             "SELECT file_path, file_hash, file_id, label, embedding FROM {TABLE_NAME} WHERE file_path = ?"
         );
         let query = sqlx::query_as::<_, Record>(query.as_str());
-        let result = query
-            .bind(file_path)
-            .fetch_optional(&mut self.conn)
-            .await?;
+        let result = query.bind(file_path).fetch_optional(&mut self.conn).await?;
 
         Ok(result)
     }
@@ -222,7 +219,10 @@ impl Database {
     }
 
     /// Iterate over all records in the database. (path only)
-    #[allow(clippy::iter_not_returning_iterator, reason = "It returns a stream, also called async iterator")]
+    #[allow(
+        clippy::iter_not_returning_iterator,
+        reason = "It returns a stream, also called async iterator"
+    )]
     pub fn iter(&mut self) -> BoxStream<'_, SqlResult<String>> {
         let query = sqlx::query(queries::QUERY_PATH);
         let result = query

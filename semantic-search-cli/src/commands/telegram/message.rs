@@ -3,8 +3,8 @@
 use super::{ApiClient, BotConfig, BotResult, Database};
 use doc_for::{doc, doc_impl};
 use frankenstein::{
-    client_reqwest::Bot, AsyncTelegramApi, ChatId, Error, FileUpload, GetStickerSetParams, Message,
-    ReplyParameters, SendMessageParams, SendStickerParams, User,
+    client_reqwest::Bot, AsyncTelegramApi, ChatId, FileUpload, Message, ReplyParameters,
+    SendMessageParams, SendStickerParams, User,
 };
 use log::info;
 use semantic_search::Embedding;

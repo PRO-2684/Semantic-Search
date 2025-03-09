@@ -2,9 +2,9 @@
 
 use super::{ApiClient, BotConfig, BotResult, Database};
 use frankenstein::{
-    client_reqwest::Bot, AnswerInlineQueryParams, AsyncTelegramApi, Error, InlineQuery,
-    InlineQueryResult, InlineQueryResultArticle, InlineQueryResultCachedSticker,
-    InputMessageContent, InputTextMessageContent, User,
+    client_reqwest::Bot, AnswerInlineQueryParams, AsyncTelegramApi, InlineQuery, InlineQueryResult,
+    InlineQueryResultArticle, InlineQueryResultCachedSticker, InputMessageContent,
+    InputTextMessageContent,
 };
 use log::info;
 use semantic_search::Embedding;
@@ -14,7 +14,6 @@ use tokio::sync::Mutex;
 /// Handles inline queries.
 pub async fn inline_handler(
     bot: &Bot,
-    me: &User,
     query: InlineQuery,
     db: Arc<Mutex<Database>>,
     api: &ApiClient,
@@ -34,7 +33,7 @@ pub async fn inline_handler(
         ))
         .await?;
     } else {
-        handle_query(bot, me, query_str, query_id, db, api, config).await?;
+        handle_query(bot, query_str, query_id, db, api, config).await?;
     }
     Ok(())
 }
@@ -42,7 +41,6 @@ pub async fn inline_handler(
 /// Handles non-empty inline queries.
 async fn handle_query(
     bot: &Bot,
-    me: &User,
     query_str: &str,
     query_id: String,
     db: Arc<Mutex<Database>>,
@@ -85,10 +83,7 @@ async fn handle_query(
     let stickers: Vec<InlineQueryResult> = results
         .into_iter()
         .enumerate()
-        .map(|(index, (path, similarity, file_id))| {
-            let percent = similarity * 100.0;
-            sticker(index.to_string(), file_id)
-        })
+        .map(|(index, (_path, _similarity, file_id))| sticker(index.to_string(), file_id))
         .collect();
     let answer_params = AnswerInlineQueryParams::builder()
         .inline_query_id(query_id)

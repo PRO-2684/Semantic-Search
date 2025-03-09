@@ -1,7 +1,5 @@
 //! `tg` subcommand
 
-#![allow(unused_imports, unused_variables, reason = "Not implemented yet.")]
-
 mod common;
 mod inline;
 mod message;
@@ -97,7 +95,6 @@ impl Telegram {
 
                                 tokio::spawn(inline::inline_handler(
                                     bot,
-                                    me,
                                     query,
                                     db.clone(),
                                     api,
