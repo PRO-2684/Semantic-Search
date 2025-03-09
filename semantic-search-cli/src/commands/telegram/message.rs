@@ -125,7 +125,7 @@ async fn answer_command(
         }
         Command::Debug(arg) => {
             if arg.is_empty() {
-                Ok("🐾 Paws and reflect! Please provide a sticker id... 🐱".to_string())
+                Ok("🐾 Paws and reflect! Please provide a sticker file id... 🐱".to_string())
             } else {
                 // Send given sticker
                 let sticker = FileUpload::String(arg);
@@ -164,7 +164,7 @@ async fn answer_search(
     let embedding: Embedding = raw_embedding.into();
     let results = {
         let mut db = db.lock().await;
-        db.search(config.num_results, &embedding).await
+        db.search_with_id(config.num_results, &embedding).await
     };
     let Ok(results) = results else {
         return Err("Failed to search the database".to_string());
@@ -175,9 +175,9 @@ async fn answer_search(
     // Format the results
     let message = results
         .iter()
-        .map(|(path, similarity)| {
+        .map(|(path, similarity, file_id)| {
             let percent = similarity * 100.0;
-            format!("🐾 {percent:.2}: {path}")
+            format!("🐾 {percent:.2}: {path} | /debug {file_id}")
         })
         .collect::<Vec<String>>()
         .join("\n");
