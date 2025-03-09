@@ -276,16 +276,17 @@ fn convert_if_necessary(path: &str) -> ImageResult<(PathBuf, bool)> {
     let (width, height) = image.dimensions();
 
     // Use the original image if it meets the requirements
+    let ext_acceptable = ext == "png" || ext == "webp";
     let one_side_512 = width == 512 || height == 512;
     let both_leq_512 = width <= 512 && height <= 512;
-    if one_side_512 && both_leq_512 {
+    if ext_acceptable && one_side_512 && both_leq_512 {
         debug!("Image already meets requirements: {}", path.display());
         return Ok((path, false));
     }
 
-    // Call resize_to_fill, which automatically fits for us
+    // Resize the image if it doesn't meet the requirements
     let new_path = path.with_extension("tmp.webp");
-    let resized = image.resize_to_fill(512, 512, FilterType::Lanczos3);
+    let resized = image.resize(512, 512, FilterType::Lanczos3);
     debug!(
         "Resized image: {} to {}",
         path.display(),
