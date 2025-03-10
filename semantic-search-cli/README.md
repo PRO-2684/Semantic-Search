@@ -6,34 +6,56 @@
 
 ### Installation
 
-You can compile the program from source by executing:
+There are two ways to install the CLI:
 
-```bash
-cargo build --release
-```
-
-The compiled binary will be located at `./target/release/sense`. You can move it to a directory in your `PATH` to use it globally.
+- From source: `cargo install semantic-search-cli`
+- From binary: Download respective release from the Releases page, or use `cargo binstall semantic-search-cli`
 
 ### Configuration
 
-Grab an API key from [SiliconCloud](https://cloud.siliconflow.cn/account/ak) (free) and set it in the configuration file. The configuration file is located at `.sense/config.toml` and should look like this:
+The configuration file is located at `.sense/config.toml`. You should create this file if it does not exist.
+
+#### Sample Configuration
 
 ```toml
-[server]
-port = 8080 # Default port for the server (Optional)
-
 [api]
 key = "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" # API key for SiliconCloud (Required)
 model = "BAAI/bge-large-zh-v1.5" # Model to use for embedding (Optional)
-# Available models: BAAI/bge-large-zh-v1.5, BAAI/bge-large-en-v1.5, netease-youdao/bce-embedding-base_v1, BAAI/bge-m3, Pro/BAAI/bge-m3
 
 [bot] # Only required for `sense bot`
 token = "1234567890:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" # Telegram bot token (Required)
 owner = 1234567890 # Telegram user ID of the bot owner (Required)
-whitelist = [] # Whitelisted user IDs - Only these users can use the bot (Optional, all users can use the bot if not set or set to an empty array)
+whitelist = [] # Whitelisted user IDs (Optional)
 sticker_set = "meme" # Sticker set id prefix for the bot (Optional, an additional `_by_<bot_username>` will be appended to form the full sticker set id)
 num_results = 8 # Number of results to return (Optional)
+
+[server]
+port = 8080 # Default port for the server (Optional)
 ```
+
+#### API Configuration (`[api]` section)
+
+- `api.key`: Required. API key for SiliconCloud. You can get one from [SiliconCloud](https://cloud.siliconflow.cn/account/ak) for free.
+- `api.model`: Optional. Model to use for embedding. Available models:
+    - [`BAAI/bge-large-zh-v1.5`](https://cloud.siliconflow.cn/open/models?target=BAAI/bge-large-zh-v1.5) (Default)
+    - [`BAAI/bge-large-en-v1.5`](https://cloud.siliconflow.cn/open/models?target=BAAI/bge-large-en-v1.5)
+    - [`netease-youdao/bce-embedding-base_v1`](https://cloud.siliconflow.cn/open/models?target=netease-youdao/bce-embedding-base_v1)
+    - [`BAAI/bge-m3`](https://cloud.siliconflow.cn/open/models?target=BAAI/bge-m3)
+    - [`Pro/BAAI/bge-m3`](https://cloud.siliconflow.cn/open/models?target=Pro/BAAI/bge-m3)
+
+#### Telegram Bot Configuration (`[bot]` section)
+
+This section is only required if you want to deploy the Telegram bot (`sense bot`).
+
+- `bot.token`: Required. Telegram bot token. You can get one from [BotFather](https://t.me/BotFather).
+- `bot.owner`: Required. Telegram user ID of the bot owner. You can get your user ID from [IDBot](https://t.me/myidbot).
+- `bot.whitelist`: Optional. Whitelisted user IDs. Only these users can use the bot. If not set or set to an empty array, all users can use the bot.
+- `bot.sticker_set`: Optional. Sticker set id prefix for the bot. An additional `_by_<bot_username>` will be appended to form the full sticker set id, as required by Telegram. If not set, the bot will not create any sticker set.
+- `bot.num_results`: Optional. Number of results to return. Default is 8.
+
+#### (TBD) Server Configuration (`[server]` section)
+
+TBD
 
 ### Indexing
 
