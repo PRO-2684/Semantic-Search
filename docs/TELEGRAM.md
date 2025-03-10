@@ -10,6 +10,8 @@ Note that for best results, all files must be of .JP(E)G, .PNG or .WEBP format. 
 python scripts/fix-ext.py /path/to/images/
 ```
 
+A set of indexed sample images is provided [here](https://github.com/PRO-2684/Semantic-Search/releases/download/v0.1.3/sample.tar.gz) for you to try out. Configure `.sense/config.toml` and rename `.sense/empty-file_id.db3` to `.sense/index.db3` before running the bot.
+
 ## Creating a bot
 
 1. Go to [@BotFather](https://t.me/BotFather) and create a bot.

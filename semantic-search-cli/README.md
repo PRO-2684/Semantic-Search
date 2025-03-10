@@ -50,7 +50,7 @@ This section is only required if you want to deploy the Telegram bot (`sense bot
 - `bot.token`: Required. Telegram bot token. You can get one from [BotFather](https://t.me/BotFather).
 - `bot.owner`: Required. Telegram user ID of the bot owner. You can get your user ID from [IDBot](https://t.me/myidbot).
 - `bot.whitelist`: Optional. Whitelisted user IDs. Only these users can use the bot. If not set or set to an empty array, all users can use the bot.
-- `bot.sticker_set`: Optional. Sticker set id prefix for the bot. An additional `_by_<bot_username>` will be appended to form the full sticker set id, as required by Telegram. If not set, the bot will not create any sticker set.
+- `bot.sticker_set`: Optional. Sticker set id prefix for the bot. It must begin with a letter and can't contain consecutive underscores. An additional `_by_<bot_username>` will be appended to form the full sticker set id, as [required by Telegram](https://core.telegram.org/bots/api#createnewstickerset:~:text=Must%20begin%20with%20a%20letter%2C%20can%27t%20contain%20consecutive%20underscores%20and%20must%20end%20in%20%22_by_%3Cbot_username%3E%22.). Default is `meme`.
 - `bot.num_results`: Optional. Number of results to return. Default is 8.
 
 #### (TBD) Server Configuration (`[server]` section)
