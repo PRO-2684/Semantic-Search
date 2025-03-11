@@ -50,7 +50,6 @@ impl Telegram {
 
         // Upload stickers
         info!("Initializing stickers...");
-        // common::init_stickers(&bot, &me, &mut db, &config.bot).await?;
         let init_result = common::init_stickers(&bot, &me, &mut db, &config.bot).await;
         match init_result {
             Ok(_) => info!("Initialized stickers, start handling updates..."),

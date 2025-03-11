@@ -27,7 +27,8 @@ use log::{debug, error, info, warn};
 use super::{BotConfig, BotResult};
 use crate::util::Database;
 
-const STICKER_SET_LIMIT: usize = 120;
+/// Number of images per batch. Must be lower than sticker set limit (120).
+const BATCH_SIZE: usize = 20;
 
 /// Initialize stickers.
 pub async fn init_stickers(
@@ -92,12 +93,12 @@ pub async fn init_stickers(
             .build();
         let result = bot.add_sticker_to_set(&add_params).await;
         if let Err(error) = result {
-            error!("[BATCH {}/{}] ! {path}: {error}", success_paths.len() + 1, STICKER_SET_LIMIT);
+            error!("[BATCH {}/{}] ! {path}: {error}", success_paths.len() + 1, BATCH_SIZE);
         } else {
-            info!("[BATCH {}/{}] + {path}", success_paths.len() + 1, STICKER_SET_LIMIT);
+            info!("[BATCH {}/{}] + {path}", success_paths.len() + 1, BATCH_SIZE);
             success_paths.push(path);
             // Update database and empty the sticker set if the limit is reached
-            if success_paths.len() == STICKER_SET_LIMIT {
+            if success_paths.len() == BATCH_SIZE {
                 commit_changes(bot, db, &get_params, &success_paths).await?;
                 success_paths.clear();
             }
