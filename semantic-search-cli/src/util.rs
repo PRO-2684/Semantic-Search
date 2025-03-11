@@ -332,7 +332,7 @@ impl Database {
         let query = format!("UPDATE {TABLE_NAME} SET file_id = ? WHERE file_path = ?");
         let query = sqlx::query(query.as_str());
         let result = query
-            .bind(file_id)
+            .bind(Some(file_id))
             .bind(file_path)
             .execute(&mut self.conn)
             .await?;
