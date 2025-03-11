@@ -35,7 +35,7 @@ pub enum Command {
 impl Command {
     fn description() -> String {
         format!(
-            "{}\n/help - {}\n/search - {}\n/inline - {}\n/debug - {}",
+            "{}\n/help - {}\n/search - {}\n/inline - {}\n/debug - {}\n\n🐱‍💻 Paws under the hood: https://github.com/PRO-2684/Semantic-Search",
             doc!(Command),
             doc!(Command, Help),
             doc!(Command, Search),
