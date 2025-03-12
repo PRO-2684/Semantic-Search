@@ -3,9 +3,11 @@
 use super::{ApiClient, BotConfig, BotResult, Database};
 use doc_for::{doc, doc_impl};
 use frankenstein::{
-    client_reqwest::Bot, AsyncTelegramApi, BotCommand, ChatId, ChatType, FileUpload, Message, ReplyParameters, SendMessageParams, SendStickerParams, SetMyCommandsParams, User
+    AsyncTelegramApi, BotCommand, ChatId, ChatType, FileUpload, Message, ParseMode,
+    ReplyParameters, SendMessageParams, SendStickerParams, SetMyCommandsParams, User,
+    client_reqwest::Bot, Error,
 };
-use log::info;
+use log::{info, error};
 use semantic_search::Embedding;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -28,19 +30,19 @@ pub enum Command {
     Search(String),
     /// learn how to summon this kitty anywhere with a flick of your paw.
     Inline,
-    /// a secret paw-session for debugging - sends a sticker with the given id.
-    Debug(String),
+    /// send a sticker by its file id.
+    Sticker(String),
 }
 
 impl Command {
     fn description() -> String {
         format!(
-            "{}\n/help - {}\n/search - {}\n/inline - {}\n/debug - {}\n\n🐱‍💻 Paws under the hood: https://github.com/PRO-2684/Semantic-Search",
+            "{}\n/help - {}\n/search - {}\n/inline - {}\n/sticker - {}\n\n🐱‍💻 Paws under the hood: <a href=\"https://github.com/PRO-2684/Semantic-Search\">PRO-2684/Semantic-Search</a>",
             doc!(Command),
             doc!(Command, Help),
             doc!(Command, Search),
             doc!(Command, Inline),
-            doc!(Command, Debug),
+            doc!(Command, Sticker),
         )
     }
 
@@ -71,7 +73,7 @@ impl Command {
             "help" => Some(Self::Help),
             "search" => Some(Self::Search(arg.to_string())),
             "inline" => Some(Self::Inline),
-            "debug" => Some(Self::Debug(arg.to_string())),
+            "sticker" => Some(Self::Sticker(arg.to_string())),
             _ => None,
         }
     }
@@ -83,16 +85,17 @@ pub async fn set_commands(bot: &Bot) -> BotResult<()> {
         ("/help", doc!(Command, Help)),
         ("/search", doc!(Command, Search)),
         ("/inline", doc!(Command, Inline)),
-        ("/debug", doc!(Command, Debug)),
+        ("/sticker", doc!(Command, Sticker)),
     ];
     let commands = commands
         .into_iter()
         .map(|(command, description)| (command.to_string(), description.to_string()))
-        .map(|(command, description)| BotCommand { command, description })
+        .map(|(command, description)| BotCommand {
+            command,
+            description,
+        })
         .collect::<Vec<_>>();
-    let set_params = SetMyCommandsParams::builder()
-        .commands(commands)
-        .build();
+    let set_params = SetMyCommandsParams::builder().commands(commands).build();
     bot.set_my_commands(&set_params).await?;
     Ok(())
 }
@@ -119,8 +122,13 @@ pub async fn message_handler(
         return answer_fallback(bot, &msg).await;
     };
     info!("Received valid command: `{text}`, parsed as: {cmd:?}");
-    answer_command(bot, &msg, cmd, db, api, config).await?;
-    Ok(())
+    match answer_command(bot, &msg, cmd, db, api, config).await {
+        Ok(_) => Ok(()),
+        Err(e) => {
+            error!("Failed to answer the command: {e}");
+            Err(e)
+        },
+    }
 }
 
 /// Answers the command.
@@ -143,9 +151,9 @@ async fn answer_command(
         Command::Inline => {
             Ok("🐾 Just mention me in any chat, followed by your query, and I'll pounce into action to fetch the purr-fect meme for you! 😼✨".to_string())
         }
-        Command::Debug(arg) => {
+        Command::Sticker(arg) => {
             if arg.is_empty() {
-                Ok("🐾 Paws and reflect! Please provide a sticker file id... 🐱".to_string())
+                Ok("🐾 Paws and reflect! Please provide a sticker file id... 😾".to_string())
             } else {
                 // Send given sticker
                 let sticker = FileUpload::String(arg);
@@ -153,19 +161,32 @@ async fn answer_command(
                     .chat_id(chat_id)
                     .sticker(sticker)
                     .build();
-                bot.send_sticker(&send_params).await?;
-                Ok("🐾 Sticker sent! Hope it made your whiskers twitch! 😼".to_string())
+                match bot.send_sticker(&send_params).await {
+                    Ok(_) => {
+                        Ok("🐾 Sticker sent! Hope it made your whiskers twitch! 😼".to_string())
+                    },
+                    Err(e) => match e {
+                        Error::Api(e) => {
+                            if e.description.starts_with("Bad Request: wrong remote file identifier specified") {
+                                Ok("🐾 Paws and reflect! Please provide a valid sticker file id... 😾".to_string())
+                            } else {
+                                Err(format!("Failed to send the sticker: {}", e.description))
+                            }
+                        }
+                        _ => Err(format!("Failed to send the sticker: {e}")),
+                    },
+                }
             }
         }
     };
-    let message = match result {
+    let reply_msg = match result {
         Ok(reply) => reply,
         Err(error) => {
             format!("😿 Oops! Something went wrong...\n{error}")
         }
     };
 
-    reply(bot, msg, chat_id.into(), &message).await
+    reply(bot, msg, chat_id.into(), &reply_msg).await
 }
 
 /// Answers the search command.
@@ -197,7 +218,7 @@ async fn answer_search(
         .iter()
         .map(|(path, similarity, file_id)| {
             let percent = similarity * 100.0;
-            format!("🐾 {percent:.2}: {path} | /debug {file_id}")
+            format!("🐾 {percent:.2}%: {path} | <code>/sticker {file_id}</code>")
         })
         .collect::<Vec<String>>()
         .join("\n");
@@ -212,9 +233,9 @@ async fn answer_fallback(bot: &Bot, msg: &Message) -> BotResult<()> {
     }
     // Choose a pseudo-random message from the fallback messages.
     let idx = msg.message_id.unsigned_abs() as usize % FALLBACK_MESSAGES.len();
-    let message = FALLBACK_MESSAGES[idx];
+    let reply_msg = FALLBACK_MESSAGES[idx];
 
-    reply(bot, msg, msg.chat.id.into(), message).await
+    reply(bot, msg, msg.chat.id.into(), reply_msg).await
 }
 
 /// Reply to the message.
@@ -226,6 +247,7 @@ async fn reply(bot: &Bot, msg: &Message, chat_id: ChatId, text: &str) -> BotResu
         .chat_id(chat_id)
         .text(text)
         .reply_parameters(reply_params)
+        .parse_mode(ParseMode::Html)
         .build();
     bot.send_message(&send_params).await?;
     Ok(())
