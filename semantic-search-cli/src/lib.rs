@@ -13,7 +13,7 @@ mod util;
 use anyhow::Result;
 use argh::FromArgs;
 use commands::Command;
-pub use config::{parse_config, Config};
+pub use config::{Config, parse_config};
 use log::{debug, info, warn};
 
 /// 🔎 Semantic search.

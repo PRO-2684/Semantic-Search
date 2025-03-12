@@ -2,9 +2,9 @@
 
 use super::{ApiClient, BotConfig, BotResult, Database};
 use frankenstein::{
-    client_reqwest::Bot, AnswerInlineQueryParams, AsyncTelegramApi, InlineQuery, InlineQueryResult,
+    AnswerInlineQueryParams, AsyncTelegramApi, InlineQuery, InlineQueryResult,
     InlineQueryResultArticle, InlineQueryResultCachedSticker, InputMessageContent,
-    InputTextMessageContent,
+    InputTextMessageContent, client_reqwest::Bot,
 };
 use log::info;
 use semantic_search::Embedding;

@@ -1,8 +1,8 @@
 //! `index` subcommand
 
 use crate::{
-    util::{hash_file, iter_files, prompt, Database, Record},
     Config,
+    util::{Database, Record, hash_file, iter_files, prompt},
 };
 use anyhow::{Context, Result};
 use argh::FromArgs;

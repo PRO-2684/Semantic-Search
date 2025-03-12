@@ -3,7 +3,7 @@
 //! Possible errors.
 
 use base64::DecodeError;
-use reqwest::{header::InvalidHeaderValue, Error as ReqwestError};
+use reqwest::{Error as ReqwestError, header::InvalidHeaderValue};
 use std::array::TryFromSliceError;
 use thiserror::Error;
 

@@ -3,10 +3,10 @@
 use futures_core::stream::BoxStream;
 use futures_util::stream::StreamExt;
 use log::info;
-use semantic_search::{embedding::EmbeddingBytes, Embedding};
+use semantic_search::{Embedding, embedding::EmbeddingBytes};
 use sha2::{Digest, Sha256};
 use sqlx::{
-    sqlite::SqliteConnectOptions, Connection, Executor, Result as SqlResult, Row, SqliteConnection,
+    Connection, Executor, Result as SqlResult, Row, SqliteConnection, sqlite::SqliteConnectOptions,
 };
 use std::{
     fs::File,
@@ -55,11 +55,7 @@ pub fn iter_files<'a, T1: AsRef<Path>>(
         .unwrap()
         .filter_map(|entry| {
             let path = entry.ok()?.path();
-            if is_hidden(&path) {
-                None
-            } else {
-                Some(path)
-            }
+            if is_hidden(&path) { None } else { Some(path) }
         })
         .flat_map(move |path| {
             if path.is_dir() {
@@ -263,7 +259,7 @@ impl Database {
                     Err(e) => {
                         log::error!("Error fetching row: {e}");
                         None
-                    },
+                    }
                 }
             })
             .collect()
@@ -282,11 +278,7 @@ impl Database {
             .filter_map(|path| async {
                 let path = path.ok()?;
                 let full_path = ref_path.join(&path);
-                if full_path.exists() {
-                    None
-                } else {
-                    Some(path)
-                }
+                if full_path.exists() { None } else { Some(path) }
             })
             .collect::<Vec<_>>()
             .await;

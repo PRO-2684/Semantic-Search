@@ -6,10 +6,10 @@ mod message;
 
 use std::sync::Arc;
 
-use crate::{config::BotConfig, util::Database, Config};
+use crate::{Config, config::BotConfig, util::Database};
 use anyhow::{Context, Result};
 use argh::FromArgs;
-use frankenstein::{client_reqwest::Bot, AsyncTelegramApi, Error, GetUpdatesParams, UpdateContent};
+use frankenstein::{AsyncTelegramApi, Error, GetUpdatesParams, UpdateContent, client_reqwest::Bot};
 use log::{debug, error, info};
 use semantic_search::ApiClient;
 use tokio::sync::Mutex;
@@ -57,7 +57,7 @@ impl Telegram {
                 error!("Failed to initialize stickers: {e}");
                 db.close().await?;
                 anyhow::bail!("Failed to initialize stickers: {e}");
-            },
+            }
         }
 
         // Leaking `api`, `bot`, `me` and `bot_config` here

@@ -12,14 +12,14 @@
 use std::path::PathBuf;
 
 use frankenstein::{
-    client_reqwest::Bot, AddStickerToSetParams, AsyncTelegramApi, CreateNewStickerSetParams,
-    DeleteStickerFromSetParams, Error, FileUpload, GetStickerSetParams, InputFile, InputSticker,
-    StickerFormat, StickerSet, StickerType, UploadStickerFileParams, User,
+    AddStickerToSetParams, AsyncTelegramApi, CreateNewStickerSetParams, DeleteStickerFromSetParams,
+    Error, FileUpload, GetStickerSetParams, InputFile, InputSticker, StickerFormat, StickerSet,
+    StickerType, UploadStickerFileParams, User, client_reqwest::Bot,
 };
 use image::{
+    GenericImageView, ImageError, ImageFormat, ImageResult,
     error::{ImageFormatHint, UnsupportedError, UnsupportedErrorKind},
     imageops::FilterType,
-    GenericImageView, ImageError, ImageFormat, ImageResult,
 };
 use log::{debug, error, info, warn};
 
@@ -77,9 +77,17 @@ pub async fn init_stickers(
             .build();
         let result = bot.add_sticker_to_set(&add_params).await;
         if let Err(error) = result {
-            error!("[BATCH {}/{}] ! {path}: {error}", success_paths.len() + 1, BATCH_SIZE);
+            error!(
+                "[BATCH {}/{}] ! {path}: {error}",
+                success_paths.len() + 1,
+                BATCH_SIZE
+            );
         } else {
-            info!("[BATCH {}/{}] + {path}", success_paths.len() + 1, BATCH_SIZE);
+            info!(
+                "[BATCH {}/{}] + {path}",
+                success_paths.len() + 1,
+                BATCH_SIZE
+            );
             success_paths.push(path);
             // Update database and empty the sticker set if the limit is reached
             if success_paths.len() == BATCH_SIZE {
@@ -151,7 +159,12 @@ async fn upload_sticker_file(bot: &Bot, path: &str, user_id: u64) -> Result<Stri
 }
 
 /// Commit the changes to database and empty the sticker set.
-async fn commit_changes(bot: &Bot, db: &mut Database, get_params: &GetStickerSetParams, success_paths: &Vec<String>) -> anyhow::Result<()> {
+async fn commit_changes(
+    bot: &Bot,
+    db: &mut Database,
+    get_params: &GetStickerSetParams,
+    success_paths: &Vec<String>,
+) -> anyhow::Result<()> {
     if let Some(sticker_set) = get_sticker_set(bot, &get_params).await {
         info!("Updating database...");
         // Take the last `success_paths.len()` stickers

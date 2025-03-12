@@ -1,6 +1,6 @@
 //! `search` subcommand
 
-use crate::{util::Database, Config};
+use crate::{Config, util::Database};
 use anyhow::{Context, Result};
 use argh::FromArgs;
 use semantic_search::{ApiClient, Embedding};

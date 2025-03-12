@@ -4,9 +4,9 @@
 
 use std::fmt::Display;
 
-use super::{embedding::EmbeddingBytes, SenseError};
-use base64::{engine::general_purpose::STANDARD as DECODER, Engine as _};
-use reqwest::{header::HeaderMap, Client, ClientBuilder, Url};
+use super::{SenseError, embedding::EmbeddingBytes};
+use base64::{Engine as _, engine::general_purpose::STANDARD as DECODER};
+use reqwest::{Client, ClientBuilder, Url, header::HeaderMap};
 use serde::{Deserialize, Serialize};
 
 // == API key validation and model definitions ==
