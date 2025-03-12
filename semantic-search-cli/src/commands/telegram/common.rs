@@ -16,7 +16,6 @@ use frankenstein::{
     DeleteStickerFromSetParams, Error, FileUpload, GetStickerSetParams, InputFile, InputSticker,
     StickerFormat, StickerSet, StickerType, UploadStickerFileParams, User,
 };
-use futures_util::{future, StreamExt};
 use image::{
     error::{ImageFormatHint, UnsupportedError, UnsupportedErrorKind},
     imageops::FilterType,
@@ -46,22 +45,7 @@ pub async fn init_stickers(
         .build();
 
     // Check if the sticker set exists
-    let paths: Vec<_> = db.iter_file_ids().filter_map(|row| {
-        future::ready(
-            // Only yields path on Ok variants with missing file ids
-            match row {
-                Ok((path, None)) => Some(path),
-                Ok((path, Some(file_id))) => {
-                    debug!("Sticker {path} already uploaded: {file_id}");
-                    None
-                }
-                Err(e) => {
-                    warn!("Failed to read database: {e}");
-                    None
-                }
-            },
-        )
-    }).collect().await;
+    let paths = db.paths_without_file_ids().await;
     let mut paths = paths.into_iter();
     let sticker_set = get_sticker_set(bot, &get_params).await;
     let mut success_paths = Vec::new();

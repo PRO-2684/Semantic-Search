@@ -239,7 +239,7 @@ impl Database {
     /// Iterate over all records in the database, together with embeddings.
     pub fn iter_embeddings(&mut self) -> BoxStream<'_, SqlResult<(String, Embedding)>> {
         let query = sqlx::query(queries::QUERY_EMBEDDING);
-        let result = query
+        query
             .fetch(&mut self.conn)
             .map(|row| {
                 let row = row?;
@@ -248,23 +248,26 @@ impl Database {
                 let embedding: Embedding = embedding.try_into().expect("Invalid embedding size");
                 Ok((file_path, embedding))
             })
-            .boxed();
-        result
+            .boxed()
     }
 
-    /// Iterate over all records in the database, together with file id.
-    pub fn iter_file_ids(&mut self) -> BoxStream<'_, SqlResult<(String, Option<String>)>> {
-        let query = sqlx::query(queries::QUERY_FILE_ID);
-        let result = query
+    /// Retrieve all records' paths without file id.
+    pub async fn paths_without_file_ids(&mut self) -> Vec<String> {
+        let query = format!("SELECT file_path FROM {TABLE_NAME} WHERE file_id IS NULL");
+        let query = sqlx::query(query.as_str());
+        query
             .fetch(&mut self.conn)
-            .map(|row| {
-                let row = row?;
-                let file_path: String = row.get(0);
-                let file_id: Option<String> = row.get(1);
-                Ok((file_path, file_id))
+            .filter_map(|row| async {
+                match row {
+                    Ok(row) => Some(row.get(0)),
+                    Err(e) => {
+                        log::error!("Error fetching row: {e}");
+                        None
+                    },
+                }
             })
-            .boxed();
-        result
+            .collect()
+            .await
     }
 
     /// Clean up the database, removing records that no longer exist on disk.
@@ -351,7 +354,6 @@ impl Database {
 mod queries {
     pub const QUERY_PATH: &str = "SELECT file_path FROM files";
     pub const QUERY_EMBEDDING: &str = "SELECT file_path, embedding FROM files";
-    pub const QUERY_FILE_ID: &str = "SELECT file_path, file_id FROM files";
 }
 
 #[cfg(test)]
