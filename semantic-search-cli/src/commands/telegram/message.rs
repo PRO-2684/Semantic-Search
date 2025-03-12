@@ -3,8 +3,7 @@
 use super::{ApiClient, BotConfig, BotResult, Database};
 use doc_for::{doc, doc_impl};
 use frankenstein::{
-    AsyncTelegramApi, ChatId, ChatType, FileUpload, Message, ReplyParameters, SendMessageParams,
-    SendStickerParams, User, client_reqwest::Bot,
+    client_reqwest::Bot, AsyncTelegramApi, BotCommand, ChatId, ChatType, FileUpload, Message, ReplyParameters, SendMessageParams, SendStickerParams, SetMyCommandsParams, User
 };
 use log::info;
 use semantic_search::Embedding;
@@ -76,6 +75,26 @@ impl Command {
             _ => None,
         }
     }
+}
+
+/// Set my commands.
+pub async fn set_commands(bot: &Bot) -> BotResult<()> {
+    let commands = [
+        ("/help", doc!(Command, Help)),
+        ("/search", doc!(Command, Search)),
+        ("/inline", doc!(Command, Inline)),
+        ("/debug", doc!(Command, Debug)),
+    ];
+    let commands = commands
+        .into_iter()
+        .map(|(command, description)| (command.to_string(), description.to_string()))
+        .map(|(command, description)| BotCommand { command, description })
+        .collect::<Vec<_>>();
+    let set_params = SetMyCommandsParams::builder()
+        .commands(commands)
+        .build();
+    bot.set_my_commands(&set_params).await?;
+    Ok(())
 }
 
 /// Handles incoming messages.

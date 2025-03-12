@@ -48,6 +48,10 @@ impl Telegram {
         let me = bot.get_me().await?.result;
         info!("Bot username: {:?}", me.username);
 
+        // Set commands
+        info!("Setting commands...");
+        message::set_commands(&bot).await?;
+
         // Upload stickers
         info!("Initializing stickers...");
         let init_result = common::init_stickers(&bot, &me, &mut db, &config.bot).await;
