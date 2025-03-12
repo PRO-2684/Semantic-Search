@@ -16,7 +16,7 @@ use tokio::sync::Mutex;
 
 type BotResult<T> = Result<T, Error>;
 
-/// start a server to search for files
+/// start Telegram bot
 #[derive(FromArgs, PartialEq, Eq, Debug)]
 #[argh(subcommand, name = "tg", help_triggers("-h", "--help"))]
 pub struct Telegram {
