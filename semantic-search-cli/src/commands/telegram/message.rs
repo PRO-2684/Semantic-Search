@@ -3,11 +3,11 @@
 use super::{ApiClient, BotConfig, BotResult, Database};
 use doc_for::{doc, doc_impl};
 use frankenstein::{
-    AsyncTelegramApi, BotCommand, ChatId, ChatType, FileUpload, Message, ParseMode,
+    AsyncTelegramApi, BotCommand, ChatId, ChatType, Error, FileUpload, Message, ParseMode,
     ReplyParameters, SendMessageParams, SendStickerParams, SetMyCommandsParams, User,
-    client_reqwest::Bot, Error,
+    client_reqwest::Bot,
 };
-use log::{info, error};
+use log::{error, info};
 use semantic_search::Embedding;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -127,7 +127,7 @@ pub async fn message_handler(
         Err(e) => {
             error!("Failed to answer the command: {e}");
             Err(e)
-        },
+        }
     }
 }
 

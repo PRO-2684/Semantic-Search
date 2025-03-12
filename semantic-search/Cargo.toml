@@ -1,6 +1,6 @@
 [package]
 name = "semantic-search"
-version = "0.1.3"
+version = "0.1.4"
 edition = "2024"
 include = ["/src", "README.md"]
 description = "🔎 Semantic search library."
