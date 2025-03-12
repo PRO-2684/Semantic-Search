@@ -55,6 +55,7 @@ impl Index {
             let relative = relative.to_string();
             let existing = db.get(&relative).await?;
 
+            // Get updated record
             let record = if let Some(mut record) = existing {
                 let hash_changed = record.file_hash != hash;
                 // Warn if the hash has changed
@@ -87,6 +88,7 @@ impl Index {
                 } else {
                     // Nothing changed
                     debug!("[SAME] {relative}: {hash}");
+                    continue; // Skip to next file - this should improve performance
                 }
                 // Reuse the record
                 record

@@ -159,12 +159,13 @@ impl Database {
     pub async fn insert(&mut self, record: Record) -> SqlResult<bool> {
         let bytes: EmbeddingBytes = record.embedding.into();
         let query = format!(
-            "INSERT OR REPLACE INTO {TABLE_NAME} (file_path, file_hash, label, embedding) VALUES (?, ?, ?, ?)"
+            "INSERT OR REPLACE INTO {TABLE_NAME} (file_path, file_hash, file_id, label, embedding) VALUES (?, ?, ?, ?, ?)"
         );
         let query = sqlx::query(query.as_str());
         let result = query
             .bind(&record.file_path)
             .bind(&record.file_hash)
+            .bind(&record.file_id)
             .bind(&record.label)
             .bind(&bytes[..])
             .execute(&mut self.conn)
