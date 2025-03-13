@@ -3,9 +3,7 @@
 use super::{ApiClient, BotConfig, BotResult, Database};
 use doc_for::{doc, doc_impl};
 use frankenstein::{
-    AsyncTelegramApi, BotCommand, ChatId, ChatType, Error, FileUpload, Message, ParseMode,
-    ReplyParameters, SendMessageParams, SendStickerParams, SetMyCommandsParams, User,
-    client_reqwest::Bot,
+    client_reqwest::Bot, AsyncTelegramApi, BotCommand, ChatId, ChatType, Error, FileUpload, LinkPreviewOptions, Message, ParseMode, ReplyParameters, SendMessageParams, SendStickerParams, SetMyCommandsParams, User
 };
 use log::{error, info};
 use semantic_search::Embedding;
@@ -35,15 +33,21 @@ pub enum Command {
 }
 
 impl Command {
-    fn description() -> String {
-        format!(
-            "{}\n/help - {}\n/search - {}\n/inline - {}\n/sticker - {}\n\n🐱‍💻 Paws under the hood: <a href=\"https://github.com/PRO-2684/Semantic-Search\">PRO-2684/Semantic-Search</a>",
+    fn description(config: &BotConfig) -> String {
+        let content = format!(
+            "{}\n/help - {}\n/search - {}\n/inline - {}\n/sticker - {}",
             doc!(Command),
             doc!(Command, Help),
             doc!(Command, Search),
             doc!(Command, Inline),
             doc!(Command, Sticker),
-        )
+        );
+        let postscript = config.postscript.trim();
+        if postscript.is_empty() {
+            content
+        } else {
+            format!("{content}\n{postscript}")
+        }
     }
 
     fn parse(text: &str, username: &str) -> Option<Self> {
@@ -143,7 +147,7 @@ async fn answer_command(
     let chat_id = msg.chat.id;
     let result = match cmd {
         Command::Help => {
-            Ok(Command::description())
+            Ok(Command::description(config))
         }
         Command::Search(query) => {
             answer_search(api, &query, db, config).await
@@ -243,11 +247,13 @@ async fn reply(bot: &Bot, msg: &Message, chat_id: ChatId, text: &str) -> BotResu
     let reply_params = ReplyParameters::builder()
         .message_id(msg.message_id)
         .build();
+    let link_preview_options = LinkPreviewOptions::builder().is_disabled(true).build();
     let send_params = SendMessageParams::builder()
         .chat_id(chat_id)
         .text(text)
         .reply_parameters(reply_params)
         .parse_mode(ParseMode::Html)
+        .link_preview_options(link_preview_options)
         .build();
     bot.send_message(&send_params).await?;
     Ok(())

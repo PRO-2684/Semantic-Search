@@ -28,6 +28,7 @@ owner = 1234567890 # Telegram user ID of the bot owner (Required)
 whitelist = [] # Whitelisted user IDs (Optional)
 sticker_set = "meme" # Sticker set id prefix for the bot (Optional, an additional `_by_<bot_username>` will be appended to form the full sticker set id)
 num_results = 8 # Number of results to return (Optional)
+postscript = "" # Postscript to be appended after the help message (Optional)
 
 [server]
 port = 8080 # Default port for the server (Optional)
@@ -52,6 +53,7 @@ This section is only required if you want to deploy the Telegram bot (`sense bot
 - `bot.whitelist`: Optional. Whitelisted user IDs. Only these users can use the bot. If not set or set to an empty array, all users can use the bot.
 - `bot.sticker_set`: Optional. Sticker set id prefix for the bot. It must begin with a letter and can't contain consecutive underscores. An additional `_by_<bot_username>` will be appended to form the full sticker set id, as [required by Telegram](https://core.telegram.org/bots/api#createnewstickerset:~:text=Must%20begin%20with%20a%20letter%2C%20can%27t%20contain%20consecutive%20underscores%20and%20must%20end%20in%20%22_by_%3Cbot_username%3E%22.). Default is `meme`.
 - `bot.num_results`: Optional. Number of results to return. Default is 8.
+- `bot.postscript`: Optional. Postscript to be appended after the help message, formatted in [HTML style](https://core.telegram.org/bots/api#html-style). Default is an empty string.
 
 #### (TBD) Server Configuration (`[server]` section)
 

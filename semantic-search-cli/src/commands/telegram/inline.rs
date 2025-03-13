@@ -47,7 +47,7 @@ async fn handle_query(
     api: &ApiClient,
     config: &BotConfig,
 ) -> BotResult<()> {
-    info!("Handling inline query: {}", query_str);
+    info!("Handling inline query: {query_str}");
     let Ok(raw_embedding) = api.embed(query_str).await else {
         bot.answer_inline_query(&text_query_params(
             &query_id,

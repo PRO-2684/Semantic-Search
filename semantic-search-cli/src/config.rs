@@ -48,21 +48,24 @@ pub struct ApiConfig {
 /// Telegram bot configuration.
 #[derive(Deserialize, Debug)]
 pub struct BotConfig {
-    /// Token for the Telegram bot.
+    /// Telegram bot token.
     #[serde(default)]
     pub token: String,
     /// Telegram user ID of the bot owner.
     #[serde(default)]
     pub owner: u64,
-    /// White list of user IDs that can use the bot.
+    /// Whitelisted user IDs.
     #[serde(default)]
     pub whitelist: Vec<u64>,
-    /// Sticker set id for the bot (Optional).
+    /// Sticker set id prefix for the bot.
     #[serde(default = "defaults::sticker_set")]
     pub sticker_set: String,
     /// Number of results to return.
     #[serde(default = "defaults::num_results")]
     pub num_results: usize,
+    /// Postscript to be appended after the help message.
+    #[serde(default)]
+    pub postscript: String,
 }
 
 impl Default for BotConfig {
@@ -73,6 +76,7 @@ impl Default for BotConfig {
             whitelist: Vec::new(),
             num_results: defaults::num_results(),
             sticker_set: defaults::sticker_set(),
+            postscript: String::new(),
         }
     }
 }
