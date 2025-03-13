@@ -67,7 +67,7 @@ pub async fn init_stickers(
 
     // Upload the rest of the stickers
     info!("Uploading stickers...");
-    while let Some(path) = paths.next() {
+    for path in paths {
         // NOTE: This shouldn't be done in parallel, as the stickers must be uploaded in order
         let file_id = upload_sticker_file(bot, &path, me.id).await?;
         let add_params = AddStickerToSetParams::builder()
@@ -163,9 +163,9 @@ async fn commit_changes(
     bot: &Bot,
     db: &mut Database,
     get_params: &GetStickerSetParams,
-    success_paths: &Vec<String>,
+    success_paths: &[String],
 ) -> anyhow::Result<()> {
-    if let Some(sticker_set) = get_sticker_set(bot, &get_params).await {
+    if let Some(sticker_set) = get_sticker_set(bot, get_params).await {
         info!("Updating database...");
         // Take the last `success_paths.len()` stickers
         let start = sticker_set.stickers.len() - success_paths.len();
@@ -189,7 +189,7 @@ async fn commit_changes(
 }
 
 /// Empty the sticker set.
-pub async fn empty_sticker_set(bot: &Bot, sticker_set: StickerSet) -> BotResult<Vec<String>> {
+async fn empty_sticker_set(bot: &Bot, sticker_set: StickerSet) -> BotResult<Vec<String>> {
     let file_ids: Vec<_> = sticker_set
         .stickers
         .into_iter()
