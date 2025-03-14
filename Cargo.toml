@@ -3,12 +3,14 @@ resolver = "2"
 members = ["semantic-search", "semantic-search-cli"]
 
 [workspace.package]
-version = "0.1.4"
+authors = ["PRO-2684"]
+categories = ["command-line-utilities", "development-tools"]
 edition = "2024"
+include = ["/src", "README.md"]
+keywords = ["search", "semantic", "embedding"]
 license = "GPL-3.0-or-later"
 repository = "https://github.com/PRO-2684/Semantic-Search"
-categories = ["command-line-utilities", "development-tools"]
-authors = ["PRO-2684"]
+version = "0.1.4"
 
 [workspace.dependencies]
 serde = { version = "1.0.218", features = ["derive"] }

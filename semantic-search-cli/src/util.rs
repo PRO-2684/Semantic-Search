@@ -356,7 +356,7 @@ mod tests {
     #[test]
     fn hash_license() {
         // Hash `LICENSE` file, which should be stable enough
-        let hash = hash_file(Path::new("LICENSE")).unwrap();
+        let hash = hash_file(Path::new("../LICENSE")).unwrap();
 
         assert_eq!(
             hash,
