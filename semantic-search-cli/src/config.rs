@@ -21,16 +21,16 @@ pub struct Config {
 
 /// Server configuration.
 #[derive(Deserialize, Debug)]
+#[serde(default)]
 pub struct Server {
     /// Port for the server. Default is 8080.
-    #[serde(default = "defaults::server_port")]
     pub port: u16,
 }
 
 impl Default for Server {
     fn default() -> Self {
         Self {
-            port: defaults::server_port(),
+            port: 8080,
         }
     }
 }
@@ -47,24 +47,19 @@ pub struct ApiConfig {
 
 /// Telegram bot configuration.
 #[derive(Deserialize, Debug)]
+#[serde(default)]
 pub struct BotConfig {
     /// Telegram bot token.
-    #[serde(default)]
     pub token: String,
     /// Telegram user ID of the bot owner.
-    #[serde(default)]
     pub owner: u64,
     /// Whitelisted user IDs.
-    #[serde(default)]
     pub whitelist: Vec<u64>,
     /// Sticker set id prefix for the bot.
-    #[serde(default = "defaults::sticker_set")]
     pub sticker_set: String,
     /// Number of results to return.
-    #[serde(default = "defaults::num_results")]
     pub num_results: usize,
     /// Postscript to be appended after the help message.
-    #[serde(default)]
     pub postscript: String,
 }
 
@@ -74,8 +69,8 @@ impl Default for BotConfig {
             token: String::new(),
             owner: 0,
             whitelist: Vec::new(),
-            num_results: defaults::num_results(),
-            sticker_set: defaults::sticker_set(),
+            num_results: 8,
+            sticker_set: "meme".to_string(),
             postscript: String::new(),
         }
     }
@@ -101,22 +96,6 @@ where
 {
     let content = std::fs::read_to_string(path)?;
     Ok(parse_config_from_str(&content)?)
-}
-
-/// Default values for the configuration.
-mod defaults {
-    /// Default port for the server.
-    pub const fn server_port() -> u16 {
-        8080
-    }
-    /// Number of results to return.
-    pub const fn num_results() -> usize {
-        8
-    }
-    /// Sticker set id for the bot.
-    pub fn sticker_set() -> String {
-        "meme".to_string()
-    }
 }
 
 #[cfg(test)]
