@@ -1,18 +1,19 @@
 [package]
 name = "semantic-search"
-version = "0.1.4"
-edition = "2024"
 include = ["/src", "README.md"]
 description = "🔎 Semantic search library."
-license = "GPL-3.0-or-later"
-repository = "https://github.com/PRO-2684/Semantic-Search"
 keywords = ["search", "semantic", "library"]
-categories = ["command-line-utilities", "development-tools"]
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+categories.workspace = true
+authors.workspace = true
 
 [dependencies]
 base64 = "0.22.1"
 reqwest = { version = "0.12.12", features = ["json"] }
-serde = { version = "1.0.218", features = ["derive"] }
+serde = { workspace = true }
 serde_json = "1.0.139"
 thiserror = "2.0.11"
 

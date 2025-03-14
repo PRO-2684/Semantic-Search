@@ -2,6 +2,17 @@
 resolver = "2"
 members = ["semantic-search", "semantic-search-cli"]
 
+[workspace.package]
+version = "0.1.4"
+edition = "2024"
+license = "GPL-3.0-or-later"
+repository = "https://github.com/PRO-2684/Semantic-Search"
+categories = ["command-line-utilities", "development-tools"]
+authors = ["PRO-2684"]
+
+[workspace.dependencies]
+serde = { version = "1.0.218", features = ["derive"] }
+
 [profile.release]
 strip = true  # Automatically strip symbols from the binary.
 lto = true  # Enable link-time optimization.
