@@ -6,28 +6,30 @@ use std::fmt::Display;
 
 use super::{SenseError, embedding::EmbeddingBytes};
 use base64::{Engine as _, engine::general_purpose::STANDARD as DECODER};
+use doc_for::{DocDyn, doc_impl};
 use reqwest::{Client, ClientBuilder, Url, header::HeaderMap};
 use serde::{Deserialize, Serialize};
 
 // == API key validation and model definitions ==
 
 /// Available models.
+#[doc_impl(
+    strip = 1,
+    doc_for = false,
+    doc_dyn = true,
+    gen_attr = "serde(rename = {doc})"
+)]
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Model {
     /// BAAI/bge-large-zh-v1.5
-    #[serde(rename = "BAAI/bge-large-zh-v1.5")]
     BgeLargeZhV1_5,
     /// BAAI/bge-large-en-v1.5
-    #[serde(rename = "BAAI/bge-large-en-v1.5")]
     BgeLargeEnV1_5,
     /// netease-youdao/bce-embedding-base_v1
-    #[serde(rename = "netease-youdao/bce-embedding-base_v1")]
     BceEmbeddingBaseV1,
     /// BAAI/bge-m3
-    #[serde(rename = "BAAI/bge-m3")]
     BgeM3,
     /// Pro/BAAI/bge-m3
-    #[serde(rename = "Pro/BAAI/bge-m3")]
     ProBgeM3,
 }
 
@@ -39,11 +41,7 @@ impl Default for Model {
 
 impl Display for Model {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            serde_json::to_string(self).unwrap().trim_matches('"')
-        )
+        write!(f, "{}", self.doc_dyn().unwrap())
     }
 }
 
@@ -185,6 +183,12 @@ mod tests {
         let malformed = &KEY[..KEY.len() - 1];
         let err = validate_api_key(malformed).unwrap_err();
         assert!(matches!(err, SenseError::MalformedApiKey));
+    }
+
+    #[test]
+    fn test_model_string() {
+        let model = Model::BgeLargeZhV1_5;
+        assert_eq!(model.to_string(), "BAAI/bge-large-zh-v1.5");
     }
 
     #[tokio::test]

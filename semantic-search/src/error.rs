@@ -3,30 +3,27 @@
 //! Possible errors.
 
 use base64::DecodeError;
+use doc_for::doc_impl;
 use reqwest::{Error as ReqwestError, header::InvalidHeaderValue};
 use std::array::TryFromSliceError;
 use thiserror::Error;
 
 /// Possible errors.
+#[doc_impl(strip = 1, doc_for = false, gen_attr = "error({doc})")]
 #[derive(Debug, Error)]
 pub enum SenseError {
     /// Embedding must be 1024-dimensional.
-    #[error("Embedding must be 1024-dimensional")]
     DimensionMismatch,
     /// Malformed API key.
-    #[error("Malformed API key")]
     MalformedApiKey,
     /// Request failed.
-    #[error("Request failed. Make sure the API key is correct.")]
     RequestFailed {
         /// Source of the error.
         source: ReqwestError,
     },
     /// Invalid header value.
-    #[error("Invalid header value")]
     InvalidHeaderValue,
     /// Base64 decoding failed.
-    #[error("Base64 decoding failed")]
     Base64DecodingFailed,
 }
 

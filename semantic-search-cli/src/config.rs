@@ -29,9 +29,7 @@ pub struct Server {
 
 impl Default for Server {
     fn default() -> Self {
-        Self {
-            port: 8080,
-        }
+        Self { port: 8080 }
     }
 }
 
