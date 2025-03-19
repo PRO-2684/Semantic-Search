@@ -274,13 +274,13 @@ impl Database {
     {
         let ref_path = ref_path.as_ref();
         let records = self.iter();
-        let to_delete = records
+        let to_delete: Vec<_> = records
             .filter_map(|path| async {
                 let path = path.ok()?;
                 let full_path = ref_path.join(&path);
                 if full_path.exists() { None } else { Some(path) }
             })
-            .collect::<Vec<_>>()
+            .collect()
             .await;
         let count = to_delete.len();
 

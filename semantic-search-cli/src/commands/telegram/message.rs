@@ -93,14 +93,14 @@ pub async fn set_commands(bot: &Bot) -> BotResult<()> {
         ("/inline", doc!(Command, Inline)),
         ("/sticker", doc!(Command, Sticker)),
     ];
-    let commands = commands
+    let commands: Vec<_> = commands
         .into_iter()
         .map(|(command, description)| (command.to_string(), description.to_string()))
         .map(|(command, description)| BotCommand {
             command,
             description,
         })
-        .collect::<Vec<_>>();
+        .collect();
     let set_params = SetMyCommandsParams::builder().commands(commands).build();
     bot.set_my_commands(&set_params).await?;
     Ok(())
@@ -220,15 +220,14 @@ async fn answer_search(
         return Ok("😿 No results found...".to_string());
     }
     // Format the results
-    let message = results
+    let message: Vec<_> = results
         .iter()
         .map(|(path, similarity, file_id)| {
             let percent = similarity * 100.0;
             format!("🐾 {percent:.2}%: {path} | <code>/sticker {file_id}</code>")
         })
-        .collect::<Vec<String>>()
-        .join("\n");
-    Ok(message)
+        .collect();
+    Ok(message.join("\n"))
 }
 
 /// Fallback message.
