@@ -12,9 +12,15 @@
 use std::path::PathBuf;
 
 use frankenstein::{
-    AddStickerToSetParams, AsyncTelegramApi, CreateNewStickerSetParams, DeleteStickerFromSetParams,
-    Error, FileUpload, GetStickerSetParams, InputFile, InputSticker, StickerFormat, StickerSet,
-    StickerType, UploadStickerFileParams, User, client_reqwest::Bot,
+    AsyncTelegramApi, Error,
+    client_reqwest::Bot,
+    input_file::FileUpload,
+    methods::{
+        AddStickerToSetParams, CreateNewStickerSetParams, DeleteStickerFromSetParams,
+        GetStickerSetParams, UploadStickerFileParams,
+    },
+    stickers::{InputSticker, StickerFormat, StickerSet, StickerType},
+    types::User,
 };
 use image::{
     GenericImageView, ImageError, ImageFormat, ImageResult,
@@ -135,11 +141,10 @@ async fn upload_sticker_file(bot: &Bot, path: &str, user_id: u64) -> Result<Stri
     };
 
     // Upload the sticker
-    let sticker = InputFile::builder().path(image.clone()).build();
     let sticker_params = UploadStickerFileParams::builder()
         .sticker_format(StickerFormat::Static)
         .user_id(user_id)
-        .sticker(sticker)
+        .sticker(image.clone())
         .build();
     let uploaded = bot.upload_sticker_file(&sticker_params).await;
     if is_temp {

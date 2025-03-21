@@ -3,9 +3,11 @@
 use super::{ApiClient, BotConfig, BotResult, Database};
 use doc_for::{doc, doc_impl};
 use frankenstein::{
-    AsyncTelegramApi, BotCommand, ChatId, ChatType, Error, FileUpload, LinkPreviewOptions, Message,
-    ParseMode, ReplyParameters, SendMessageParams, SendStickerParams, SetMyCommandsParams, User,
+    AsyncTelegramApi, Error, ParseMode,
     client_reqwest::Bot,
+    input_file::FileUpload,
+    methods::{SendMessageParams, SendStickerParams, SetMyCommandsParams},
+    types::{BotCommand, ChatId, ChatType, LinkPreviewOptions, Message, ReplyParameters, User},
 };
 use log::{error, info};
 use semantic_search::Embedding;
@@ -14,7 +16,7 @@ use tokio::sync::Mutex;
 
 const FALLBACK_MESSAGES: [&str; 5] = [
     "😹 Maow?",
-    "😼 Meowww!",
+    "😼 Meowww :3",
     "🙀 Nyaaa!",
     "😿 Mew...",
     "😾 Prrrrr...!",
@@ -248,7 +250,7 @@ async fn reply(bot: &Bot, msg: &Message, chat_id: ChatId, text: &str) -> BotResu
     let reply_params = ReplyParameters::builder()
         .message_id(msg.message_id)
         .build();
-    let link_preview_options = LinkPreviewOptions::builder().is_disabled(true).build();
+    let link_preview_options = LinkPreviewOptions::DISABLED;
     let send_params = SendMessageParams::builder()
         .chat_id(chat_id)
         .text(text)

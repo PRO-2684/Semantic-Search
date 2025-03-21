@@ -13,7 +13,7 @@ repository = "https://github.com/PRO-2684/Semantic-Search"
 version = "0.1.5"
 
 [workspace.dependencies]
-serde = { version = "1.0.218", features = ["derive"] }
+serde = { version = "1.0.219", features = ["derive"] }
 doc_for = "0.1.4"
 
 [profile.release]

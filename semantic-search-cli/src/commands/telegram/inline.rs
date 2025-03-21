@@ -2,9 +2,13 @@
 
 use super::{ApiClient, BotConfig, BotResult, Database};
 use frankenstein::{
-    AnswerInlineQueryParams, AsyncTelegramApi, InlineQuery, InlineQueryResult,
-    InlineQueryResultArticle, InlineQueryResultCachedSticker, InputMessageContent,
-    InputTextMessageContent, client_reqwest::Bot,
+    AsyncTelegramApi,
+    client_reqwest::Bot,
+    inline_mode::{
+        InlineQuery, InlineQueryResult, InlineQueryResultArticle, InlineQueryResultCachedSticker,
+        InputMessageContent, InputTextMessageContent,
+    },
+    methods::AnswerInlineQueryParams,
 };
 use log::info;
 use semantic_search::Embedding;
@@ -28,7 +32,7 @@ pub async fn inline_handler(
     if query_str.is_empty() {
         bot.answer_inline_query(&text_query_params(
             &query_id,
-            "Meow!",
+            "Meow! :3",
             "Keep paw-typing to sniff out the purr-fect meme... 😸",
         ))
         .await?;

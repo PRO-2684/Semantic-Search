@@ -46,11 +46,7 @@ impl Embedding {
     /// Calculate cosine similarity between two embeddings.
     #[must_use]
     pub fn cosine_similarity(&self, other: &Self) -> f32 {
-        let dot_product: f32 = self
-            .iter()
-            .zip(other.iter())
-            .map(|(a, b)| a * b)
-            .sum();
+        let dot_product: f32 = self.iter().zip(other.iter()).map(|(a, b)| a * b).sum();
         dot_product / (self.norm * other.norm)
     }
 }

@@ -9,7 +9,9 @@ use std::sync::Arc;
 use crate::{Config, config::BotConfig, util::Database};
 use anyhow::{Context, Result};
 use argh::FromArgs;
-use frankenstein::{AsyncTelegramApi, Error, GetUpdatesParams, UpdateContent, client_reqwest::Bot};
+use frankenstein::{
+    AsyncTelegramApi, Error, client_reqwest::Bot, methods::GetUpdatesParams, updates::UpdateContent,
+};
 use log::{debug, error, info};
 use semantic_search::ApiClient;
 use tokio::sync::Mutex;
