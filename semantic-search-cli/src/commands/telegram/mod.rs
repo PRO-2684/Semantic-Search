@@ -42,7 +42,7 @@ impl Telegram {
             .with_context(|| "Failed to open database, consider indexing first.")?;
         let api = ApiClient::new(&config.api.key, config.api.model)?;
 
-        let BotConfig { token, .. } = &config.bot;
+        let token = &config.bot.token;
         if token.is_empty() {
             anyhow::bail!("No token provided for the Telegram bot.");
         }
@@ -57,14 +57,11 @@ impl Telegram {
         // Upload stickers
         info!("Initializing stickers...");
         let init_result = common::init_stickers(&bot, &me, &mut db, &config.bot).await;
-        match init_result {
-            Ok(_) => info!("Initialized stickers, start handling updates..."),
-            Err(e) => {
-                error!("Failed to initialize stickers: {e}");
-                db.close().await?;
-                anyhow::bail!("Failed to initialize stickers: {e}");
-            }
+        if let Err(e) = init_result {
+            db.close().await?;
+            anyhow::bail!("Failed to initialize stickers: {e}");
         }
+        info!("Initialized stickers, start handling updates...");
 
         // Leaking `api`, `bot`, `me` and `bot_config` here
         let bot = Box::leak(Box::new(bot));

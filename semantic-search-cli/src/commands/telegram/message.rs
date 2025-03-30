@@ -169,20 +169,18 @@ async fn answer_command(
                     .chat_id(chat_id)
                     .sticker(sticker)
                     .build();
-                match bot.send_sticker(&send_params).await {
-                    Ok(_) => {
-                        Ok("🐾 Sticker sent! Hope it made your whiskers twitch! 😼".to_string())
-                    },
-                    Err(e) => match e {
-                        Error::Api(e) => {
-                            if e.description.starts_with("Bad Request: wrong remote file identifier specified") {
-                                Ok("🐾 Paws and reflect! Please provide a valid sticker file id... 😾".to_string())
-                            } else {
-                                Err(format!("Failed to send the sticker: {}", e.description))
-                            }
+                if let Err(e) = bot.send_sticker(&send_params).await {
+                    if let Error::Api(e) = e {
+                        if e.description.starts_with("Bad Request: wrong remote file identifier specified") {
+                            Ok("🐾 Paws and reflect! Please provide a valid sticker file id... 😾".to_string())
+                        } else {
+                            Err(format!("Failed to send the sticker: Api Error {}", e.description))
                         }
-                        _ => Err(format!("Failed to send the sticker: {e}")),
-                    },
+                    } else {
+                        Err(format!("Failed to send the sticker: {e}"))
+                    }
+                } else {
+                    Ok("🐾 Sticker sent! Hope it made your whiskers twitch! 😼".to_string())
                 }
             }
         }
