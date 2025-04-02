@@ -10,7 +10,7 @@ include = ["/src", "README.md"]
 keywords = ["search", "semantic", "embedding"]
 license = "GPL-3.0-or-later"
 repository = "https://github.com/PRO-2684/Semantic-Search"
-version = "0.1.5"
+version = "0.1.6"
 
 [workspace.dependencies]
 serde = { version = "1.0.219", features = ["derive"] }

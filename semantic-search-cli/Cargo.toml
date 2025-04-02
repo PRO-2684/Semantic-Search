@@ -15,16 +15,16 @@ anyhow = "1.0.97"
 argh = "0.1.13"
 base16ct = { version = "0.2.0", features = ["alloc"] }
 doc_for.workspace = true
-env_logger = "0.11.7"
+env_logger = "0.11.8"
 frankenstein = { version = "0.40.0", features = ["client-reqwest"] }
 futures-core = "0.3.31"
 futures-util = "0.3.31"
-image = { version = "0.25.5", default-features = false, features = [
+image = { version = "0.25.6", default-features = false, features = [
     "jpeg",
     "png",
     "webp",
 ] }
-log = "0.4.26"
+log = "0.4.27"
 semantic-search = { path = "../semantic-search", version = "0.1.0" }
 serde.workspace = true
 sha2 = "0.10.8"
