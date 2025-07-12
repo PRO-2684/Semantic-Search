@@ -10,7 +10,8 @@ VERSION="$MAJOR.$MINOR.$PATCH"
 
 # Update the version in Cargo.toml
 sed -i "s/^version = \".*\"/version = \"$VERSION\"/" ./Cargo.toml
-cargo generate-lockfile
+# cargo generate-lockfile
+cargo update
 
 # Commit the change
 git add ./Cargo.toml

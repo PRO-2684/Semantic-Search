@@ -21,6 +21,8 @@ The configuration file is located at `.sense/config.toml`. You should create thi
 [api]
 key = "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" # API key for SiliconCloud (Required)
 model = "BAAI/bge-large-zh-v1.5" # Model to use for embedding (Optional)
+endpoint = "https://api.siliconflow.cn" # API endpoint (Optional)
+# Alternative: https://api.siliconflow.com
 
 [bot] # Only required for `sense bot`
 token = "1234567890:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" # Telegram bot token (Required)
@@ -118,7 +120,12 @@ $ curl -X POST http://localhost:8080/search -d '{"query": "cute cat", "limit": 5
 {"files":["cute-cat.jpg","cute-cat-2.jpg","cute-cat-3.jpg","cute-cat-4.jpg","cute-cat-5.jpg"]}
 ```
 
-## ☑️ TODOs
+## FAQ
+
+- Q: Error when running provided binary: `libssl.so.1.1: cannot open shared object file: No such file or directory`
+- A: Your Linux distro is using OpenSSL3, while the binary tries to link to OpenSSL1. Follow [this instruction](https://o.iii.st/exchange/stackoverflow.com/questions/72133316/libssl-so-1-1-cannot-open-shared-object-file-no-such-file-or-directory#73604364) for building OpenSSL1 on your machine, or compile this project from source.
+
+## TODOs
 
 - [ ] Implement aforementioned features
     - [x] Indexing
