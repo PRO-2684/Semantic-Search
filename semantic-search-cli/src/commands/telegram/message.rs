@@ -1,9 +1,14 @@
 //! Module for handling messages.
 
-use super::{ApiClient, BotConfig, BotResult, Database};
+use super::{ApiClient, BotConfig, BotResult, Database, super::super::util::Record};
 use doc_for::{doc, doc_impl};
 use frankenstein::{
-    client_reqwest::Bot, input_file::FileUpload, methods::{SendMessageParams, SendStickerParams, SetMyCommandsParams}, stickers::StickerType, types::{BotCommand, ChatType, LinkPreviewOptions, Message, ReplyParameters, User}, AsyncTelegramApi, Error, ParseMode
+    AsyncTelegramApi, Error, ParseMode,
+    client_reqwest::Bot,
+    input_file::FileUpload,
+    methods::{SendMessageParams, SendStickerParams, SetMyCommandsParams},
+    stickers::StickerType,
+    types::{BotCommand, ChatType, LinkPreviewOptions, Message, ReplyParameters, User},
 };
 use log::{error, info};
 use semantic_search::Embedding;
@@ -30,6 +35,8 @@ pub enum Command {
     Inline,
     /// send a sticker by its file id.
     Sticker(String),
+    /// add a sticker to database with given description. Only for bot owner.
+    Add(String),
 }
 
 impl Command {
@@ -78,6 +85,7 @@ impl Command {
             "search" => Some(Self::Search(arg.to_string())),
             "inline" => Some(Self::Inline),
             "sticker" => Some(Self::Sticker(arg.to_string())),
+            "add" => Some(Self::Add(arg.to_string())),
             _ => None,
         }
     }
@@ -120,10 +128,11 @@ pub async fn message_handler(
     let Some(text) = &msg.text else {
         // Non-text messages.
         if let Some(sticker) = &msg.sticker
-            && matches!(sticker.sticker_type, StickerType::Regular) {
+            && matches!(sticker.sticker_type, StickerType::Regular)
+        {
             // Get info about stickers.
             let id = &sticker.file_id;
-            return reply(bot, &msg, &format!("Sticker file_id: <code>{id}</code>")).await;
+            return reply(bot, &msg, format!("Sticker file_id: <code>{id}</code>")).await;
         } else {
             // Fallback answer.
             return answer_fallback(bot, &msg).await;
@@ -152,7 +161,6 @@ async fn answer_command(
     api: &ApiClient,
     config: &BotConfig,
 ) -> BotResult<()> {
-    let chat_id = msg.chat.id;
     let result = match cmd {
         Command::Help => {
             Ok(Command::description(config))
@@ -163,20 +171,20 @@ async fn answer_command(
         Command::Inline => {
             Ok("🐾 Just mention me in any chat, followed by your query, and I'll pounce into action to fetch the purr-fect meme for you! 😼✨".to_string())
         }
-        Command::Sticker(arg) => {
-            if arg.is_empty() {
+        Command::Sticker(file_id) => {
+            if file_id.is_empty() {
                 Ok("🐾 Paws and reflect! Please provide a sticker file id... 😾".to_string())
             } else {
                 // Send given sticker
-                let sticker = FileUpload::String(arg);
+                let sticker = FileUpload::String(file_id);
                 let send_params = SendStickerParams::builder()
-                    .chat_id(chat_id)
+                    .chat_id(msg.chat.id)
                     .sticker(sticker)
                     .build();
                 if let Err(e) = bot.send_sticker(&send_params).await {
                     if let Error::Api(e) = e {
                         if e.description.starts_with("Bad Request: wrong remote file identifier specified") {
-                            Ok("🐾 Paws and reflect! Please provide a valid sticker file id... 😾".to_string())
+                            Err("🐾 Paws and reflect! Please provide a valid sticker file id... 😾".to_string())
                         } else {
                             Err(format!("Failed to send the sticker: Api Error {}", e.description))
                         }
@@ -188,6 +196,19 @@ async fn answer_command(
                 }
             }
         }
+        Command::Add(description) => {
+            if let Some(user) = &msg.from {
+                if user.id != config.owner {
+                    Err("😾 Only my owner can use this command.".to_string())
+                } else if let Some(reply) = &msg.reply_to_message && let Some(sticker) = &reply.sticker {
+                    insert_sticker(db, api, sticker.file_id.clone(), description).await
+                } else {
+                    Err("🐾 Paws and reflect! Please provide a sticker file id, or reply to a sticker. 😾".to_string())
+                }
+            } else {
+                Err("😾 Who're you?".to_string())
+            }
+        }
     };
     let reply_msg = match result {
         Ok(reply) => reply,
@@ -196,7 +217,7 @@ async fn answer_command(
         }
     };
 
-    reply(bot, msg, &reply_msg).await
+    reply(bot, msg, reply_msg).await
 }
 
 /// Answers the search command.
@@ -244,11 +265,11 @@ async fn answer_fallback(bot: &Bot, msg: &Message) -> BotResult<()> {
     let idx = msg.message_id.unsigned_abs() as usize % FALLBACK_MESSAGES.len();
     let reply_msg = FALLBACK_MESSAGES[idx];
 
-    reply(bot, msg, reply_msg).await
+    reply(bot, msg, reply_msg.to_string()).await
 }
 
 /// Reply to the message.
-async fn reply(bot: &Bot, msg: &Message, text: &str) -> BotResult<()> {
+async fn reply(bot: &Bot, msg: &Message, text: String) -> BotResult<()> {
     let reply_params = ReplyParameters::builder()
         .message_id(msg.message_id)
         .build();
@@ -262,4 +283,25 @@ async fn reply(bot: &Bot, msg: &Message, text: &str) -> BotResult<()> {
         .build();
     bot.send_message(&send_params).await?;
     Ok(())
+}
+
+/// Insert given sticker to database.
+async fn insert_sticker(db: Arc<Mutex<Database>>, api: &ApiClient, file_id: String, description: String) -> Result<String, String> {
+    let Ok(raw_embedding) = api.embed(&description).await else {
+        return Err("Failed to embed the description".to_string());
+    };
+    let embedding: Embedding = raw_embedding.into();
+    let record = Record {
+        embedding,
+        file_hash: "Unknown".to_string(),
+        file_path: format!("tg-sticker://{file_id}"),
+        file_id: Some(file_id),
+        label: description,
+    };
+    let mut db = db.lock().await;
+    if let Err(e) = db.insert(record).await {
+        Err(format!("Failed to insert record: {e}"))
+    } else {
+        Ok("Successfully inserted sticker.".to_string())
+    }
 }

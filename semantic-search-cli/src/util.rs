@@ -277,8 +277,12 @@ impl Database {
         let to_delete: Vec<_> = records
             .filter_map(|path| async {
                 let path = path.ok()?;
-                let full_path = ref_path.join(&path);
-                if full_path.exists() { None } else { Some(path) }
+                if path.starts_with("tg-sticker://") {
+                    None
+                } else {
+                    let full_path = ref_path.join(&path);
+                    if full_path.exists() { None } else { Some(path) }
+                }
             })
             .collect()
             .await;
