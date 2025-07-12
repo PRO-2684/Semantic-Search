@@ -98,6 +98,7 @@ pub async fn set_commands(bot: &Bot) -> BotResult<()> {
         ("/search", doc!(Command, Search)),
         ("/inline", doc!(Command, Inline)),
         ("/sticker", doc!(Command, Sticker)),
+        ("/add", doc!(Command, Sticker)),
     ];
     let commands: Vec<_> = commands
         .into_iter()
