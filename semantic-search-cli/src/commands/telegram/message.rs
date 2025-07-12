@@ -42,12 +42,13 @@ pub enum Command {
 impl Command {
     fn description(config: &BotConfig) -> String {
         let content = format!(
-            "{}\n/help - {}\n/search - {}\n/inline - {}\n/sticker - {}",
+            "{}\n/help - {}\n/search - {}\n/inline - {}\n/sticker - {}\n/add - {}",
             doc!(Command),
             doc!(Command, Help),
             doc!(Command, Search),
             doc!(Command, Inline),
             doc!(Command, Sticker),
+            doc!(Command, Add),
         );
         let postscript = config.postscript.trim();
         if postscript.is_empty() {
