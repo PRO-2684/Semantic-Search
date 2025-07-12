@@ -92,7 +92,7 @@ impl Telegram {
                                 tokio::spawn(message::message_handler(
                                     bot,
                                     me,
-                                    msg,
+                                    *msg,
                                     db.clone(),
                                     api,
                                     bot_config,
