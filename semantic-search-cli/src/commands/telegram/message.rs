@@ -3,11 +3,7 @@
 use super::{ApiClient, BotConfig, BotResult, Database};
 use doc_for::{doc, doc_impl};
 use frankenstein::{
-    AsyncTelegramApi, Error, ParseMode,
-    client_reqwest::Bot,
-    input_file::FileUpload,
-    methods::{SendMessageParams, SendStickerParams, SetMyCommandsParams},
-    types::{BotCommand, ChatId, ChatType, LinkPreviewOptions, Message, ReplyParameters, User},
+    client_reqwest::Bot, input_file::FileUpload, methods::{SendMessageParams, SendStickerParams, SetMyCommandsParams}, stickers::StickerType, types::{BotCommand, ChatType, LinkPreviewOptions, Message, ReplyParameters, User}, AsyncTelegramApi, Error, ParseMode
 };
 use log::{error, info};
 use semantic_search::Embedding;
@@ -122,8 +118,16 @@ pub async fn message_handler(
         return Ok(());
     };
     let Some(text) = &msg.text else {
-        // Ignore non-text messages.
-        return answer_fallback(bot, &msg).await;
+        // Non-text messages.
+        if let Some(sticker) = &msg.sticker
+            && matches!(sticker.sticker_type, StickerType::Regular) {
+            // Get info about stickers.
+            let id = &sticker.file_id;
+            return reply(bot, &msg, &format!("Sticker file_id: <code>{id}</code>")).await;
+        } else {
+            // Fallback answer.
+            return answer_fallback(bot, &msg).await;
+        };
     };
     let Some(cmd) = Command::parse(text, username) else {
         // Cannot parse the command
@@ -192,7 +196,7 @@ async fn answer_command(
         }
     };
 
-    reply(bot, msg, chat_id.into(), &reply_msg).await
+    reply(bot, msg, &reply_msg).await
 }
 
 /// Answers the search command.
@@ -240,17 +244,17 @@ async fn answer_fallback(bot: &Bot, msg: &Message) -> BotResult<()> {
     let idx = msg.message_id.unsigned_abs() as usize % FALLBACK_MESSAGES.len();
     let reply_msg = FALLBACK_MESSAGES[idx];
 
-    reply(bot, msg, msg.chat.id.into(), reply_msg).await
+    reply(bot, msg, reply_msg).await
 }
 
 /// Reply to the message.
-async fn reply(bot: &Bot, msg: &Message, chat_id: ChatId, text: &str) -> BotResult<()> {
+async fn reply(bot: &Bot, msg: &Message, text: &str) -> BotResult<()> {
     let reply_params = ReplyParameters::builder()
         .message_id(msg.message_id)
         .build();
     let link_preview_options = LinkPreviewOptions::DISABLED;
     let send_params = SendMessageParams::builder()
-        .chat_id(chat_id)
+        .chat_id(msg.chat.id)
         .text(text)
         .reply_parameters(reply_params)
         .parse_mode(ParseMode::Html)
