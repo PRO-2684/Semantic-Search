@@ -35,7 +35,7 @@ pub enum Command {
     Inline,
     /// send a sticker by its file id.
     Sticker(String),
-    /// add a sticker to database with given description. Only for bot owner.
+    /// reply to a sticker with given description to add it to database. Only for bot owner.
     Add(String),
 }
 
@@ -204,7 +204,7 @@ async fn answer_command(
                 } else if let Some(reply) = &msg.reply_to_message && let Some(sticker) = &reply.sticker {
                     insert_sticker(db, api, sticker.file_id.clone(), description).await
                 } else {
-                    Err("🐾 Paws and reflect! Please provide a sticker file id, or reply to a sticker. 😾".to_string())
+                    Err("🐾 Paws and reflect! Please reply to a sticker. 😾".to_string())
                 }
             } else {
                 Err("😾 Who're you?".to_string())
