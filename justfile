@@ -4,10 +4,13 @@ alias s := search
 alias d := debug
 alias t := test
 
-# Bump version
-[doc("Bump \u{001b}[4mv\u{001b}[24mersion")]
-bump:
-    ./scripts/bump-version.sh
+default:
+  just --list
+
+# Set or get version
+[doc("Set or get \u{001b}[4mv\u{001b}[24mersion")]
+bump *version:
+    ./scripts/version.sh {{version}}
 
 # Compile and run
 [doc("Compile and \u{001b}[4mr\u{001b}[24mun")]
